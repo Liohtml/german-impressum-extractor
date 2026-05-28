@@ -1,7 +1,6 @@
 # german-impressum-extractor
 
-[![crates.io](https://img.shields.io/crates/v/german-impressum-extractor.svg)](https://crates.io/crates/german-impressum-extractor)
-[![docs.rs](https://docs.rs/german-impressum-extractor/badge.svg)](https://docs.rs/german-impressum-extractor)
+[![CI](https://github.com/Liohtml/german-impressum-extractor/actions/workflows/ci.yml/badge.svg)](https://github.com/Liohtml/german-impressum-extractor/actions/workflows/ci.yml)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
 
 Extract structured data from German B2B website Impressum text — pure Rust, no async runtime needed.
@@ -10,16 +9,18 @@ Germany's [TMG §5](https://www.gesetze-im-internet.de/tmg/__5.html) requires ev
 
 ## What it extracts
 
-- 📧 **Email addresses** — plain (`info@firma.de`) and obfuscated (`info [at] firma [dot] de`).
+- 📧 **Email addresses** — plain (`info@firma.de`) and obfuscated (`info [at] firma [dot] de`). Code-fragment false positives (e.g. `…@….css`) are filtered out.
 - ☎️ **Phone numbers** — normalized to `+49…` form regardless of input format.
+- 📠 **Fax / Telefax** — labeled fax numbers, kept separate from `phones`.
 - 🏠 **Address** — German postcode + city + street with house number.
 - 🪪 **HR-Nummer** — Handelsregister number (e.g. `HRB 12345 B`).
 - 🏛️ **HR court** — registration court (e.g. `Amtsgericht Berlin (Charlottenburg)`).
-- 💶 **USt-IdNr.** — German VAT ID (`DE` + 9 digits).
+- 💶 **USt-IdNr.** — German VAT ID (`DE` + 9 digits, also with grouping spaces `DE 123 456 789`).
 - 🧾 **Steuernummer** — local tax number.
+- 🏦 **IBAN / BIC** — German bank details (`Bankverbindung`).
 - 🏢 **Legal form** — `GmbH`, `GmbH & Co. KG`, `UG`, `AG`, `KG`, `OHG`, `GbR`, `e.K.`, `eG`, `SE`.
 - 📅 **Year founded** — `gegründet 1973` / `seit 1985` / `founded in 1990`.
-- 👥 **Persons** — Geschäftsführer / Inhaber / Vorstand / Vertretungsberechtigt with role tag.
+- 👥 **Persons** — Geschäftsführer / Inhaber / Vorstand / Verantwortlicher (§18 MStV) with role tag.
 
 ## Why not just regex it yourself
 
@@ -34,12 +35,14 @@ This crate has 7+ unit tests covering these cases and is used in production lead
 
 ## Usage
 
-Add to `Cargo.toml`:
+> **Note:** this crate is not yet published on crates.io. Add it as a git dependency:
 
 ```toml
 [dependencies]
-german-impressum-extractor = "0.1"
+german-impressum-extractor = { git = "https://github.com/Liohtml/german-impressum-extractor" }
 ```
+
+Once published, this will become `german-impressum-extractor = "0.1"`.
 
 ### One-shot extract
 
