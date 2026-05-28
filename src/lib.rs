@@ -22,8 +22,10 @@
 //! - 📦 Zero async runtime needed; pure synchronous parsing.
 //! - 🔍 Granular: each extractor (emails, phones, address, persons,
 //!   register numbers, etc.) is separately callable.
-//! - 🪪 Pulls out: HR-Nummer, HR-Court, USt-IdNr., Steuernummer.
-//! - 👥 Geschäftsführer / Inhaber / Vorstand name extraction with role tag.
+//! - 🪪 Pulls out: HR-Nummer, HR-Court, USt-IdNr., Steuernummer, IBAN, BIC.
+//! - 📠 Fax / Telefax detection, kept separate from phone numbers.
+//! - 👥 Geschäftsführer / Inhaber / Vorstand / Verantwortlicher (§18 MStV)
+//!   name extraction with role tag.
 //! - 🏢 Legal-form detection: GmbH, GmbH & Co. KG, UG, AG, KG, OHG, GbR, e.K., eG, SE.
 //! - 📅 Year-founded heuristics ("gegründet 1973" / "seit 1985" / "founded in 1990").
 //!
@@ -83,8 +85,11 @@ use unicode_normalization::UnicodeNormalization;
 pub struct Extracted {
     /// Raw email addresses found, normalized to lowercase. De-duplicated.
     pub emails: Vec<String>,
-    /// Phone numbers in `+49…` form, deduplicated.
+    /// Phone numbers in `+49…` form, deduplicated. Numbers detected as a
+    /// fax (see [`Extracted::fax`]) are removed from this list.
     pub phones: Vec<String>,
+    /// Fax / Telefax number in `+49…` form, if one was explicitly labeled.
+    pub fax: Option<String>,
     /// First detected German postcode (5 digits).
     pub postcode: Option<String>,
     /// First detected city following the postcode.
@@ -99,11 +104,16 @@ pub struct Extracted {
     pub vat_id: Option<String>,
     /// Steuernummer.
     pub tax_number: Option<String>,
+    /// German IBAN, normalized without spaces (e.g. `DE89370400440532013000`).
+    pub iban: Option<String>,
+    /// BIC / SWIFT code, uppercased (e.g. `COBADEFFXXX`).
+    pub bic: Option<String>,
     /// Detected legal form (canonicalized).
     pub legal_form: Option<String>,
     /// Year company was founded.
     pub year_founded: Option<i32>,
-    /// Persons mentioned in the role of Geschäftsführer / Inhaber / Vorstand / Vertretungsberechtigt.
+    /// Persons mentioned in the role of Geschäftsführer / Inhaber / Vorstand /
+    /// Verantwortlicher / Vertretungsberechtigt.
     pub persons: Vec<Person>,
 }
 
@@ -117,7 +127,7 @@ pub struct Person {
     pub last_name: Option<String>,
     /// The raw matched string from the source, useful for debugging.
     pub full_raw: String,
-    /// Detected role: "Geschäftsführer" | "Inhaber" | "Vorstand" | None.
+    /// Detected role: "Geschäftsführer" | "Inhaber" | "Vorstand" | "Verantwortlich" | None.
     pub role: Option<String>,
 }
 
@@ -163,11 +173,38 @@ static HR_NUMBER_RE: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"(?i)\bHR[AB]?\s*[:\-]?\s*(?:Nr\.?\s*)?(\d{2,7}(?:\s*[A-Z])?)\b").unwrap()
 });
 
-static HR_COURT_RE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"(?i)Amtsgericht\s+([A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-./ ]{2,40})").unwrap()
-});
+static HR_COURT_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"(?i)Amtsgericht\s+([A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-./ ]{2,40})").unwrap());
 
-static VAT_DE_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?i)\bDE\s*\d{9}\b").unwrap());
+// USt-IdNr.: `DE` followed by exactly 9 digits, which may be grouped with
+// internal spaces (e.g. `DE 123 456 789`). Normalization strips the spaces.
+static VAT_DE_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"(?i)\bDE[\s\-]?(?:\d[\s\-]?){8}\d\b").unwrap());
+
+// German IBAN: `DE` + 2 check digits + 18 BBAN digits (22 chars total),
+// commonly written in groups of four with spaces.
+static IBAN_DE_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?i)\bDE(?:[\s\-]?\d){20}\b").unwrap());
+
+// BIC / SWIFT: 4 letters (bank) + 2 letters (country) + 2 alphanumerics
+// (location) + optional 3 alphanumerics (branch). Matched case-insensitively
+// and only accepted in a banking context (see `extract_bic`).
+static BIC_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"(?i)\b[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}(?:[A-Z0-9]{3})?\b").unwrap());
+
+// A fax/telefax label immediately followed by a German phone number.
+static FAX_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r"(?ix)
+        (?:tele)?fax\.?\s*[:\-]?\s*
+        ((?:\+49|0049|0)
+         [\s\-/]?(?:\(0?\)|\d{1,5})
+         [\s\-/]?\d{2,4}
+         [\s\-/]?\d{2,4}
+         (?:[\s\-/]?\d{0,4})?)
+        ",
+    )
+    .unwrap()
+});
 
 static TAX_NUMBER_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"(?i)Steuer-?nummer[:\s]*([\d/\s]{8,20})").unwrap());
@@ -181,6 +218,9 @@ static GF_REGEX: Lazy<Regex> = Lazy::new(|| {
           | Vorstand
           | Vertretungsberechtigt(?:e[rn]?)?
           | vertreten\s+durch
+          | Verantwortlich(?:e[rn]?)?\s+f(?:ü|ue)r\s+den\s+Inhalt
+          | Redaktionell\s+verantwortlich
+          | Verantwortlich(?:e[rn]?)?(?:\s+(?:i\.?\s?S\.?\s?[dv]\.?|gem(?:ä|ae)ß|nach)[^:\n]{0,40})?
         )
         [\s:\-]+
         (?:sind\s+|ist\s+)?
@@ -226,6 +266,113 @@ static LEGAL_FORM_RE: Lazy<Regex> = Lazy::new(|| {
     .unwrap()
 });
 
+// ───────────────────────── Blocklists ─────────────────────────
+
+/// TLDs that only ever appear in code fragments (CSS imports, JS bundles,
+/// template artifacts), never in a real email address. See issue #3.
+const INVALID_EMAIL_TLDS: &[&str] = &[
+    "css", "scss", "less", "js", "mjs", "cjs", "ts", "tsx", "jsx", "vue", "html", "htm", "php",
+    "png", "jpg", "jpeg", "svg", "gif", "webp", "map", "json", "xml", "woff", "woff2", "ttf",
+    "soweit",
+];
+
+/// Domains observed as false positives from theme/widget code. See issue #3.
+const BLOCKED_EMAIL_DOMAINS: &[&str] = &["sapp.com", "tet.soweit"];
+
+/// Tokens that are never a person name: German articles, prepositions,
+/// pronouns, common verbs, and legal/role terms. See issue #4.
+const NOT_A_NAME: &[&str] = &[
+    // Articles
+    "der",
+    "die",
+    "das",
+    "den",
+    "dem",
+    "des",
+    "ein",
+    "eine",
+    "einem",
+    "einer",
+    "einen",
+    "eines",
+    // Prepositions
+    "in",
+    "an",
+    "auf",
+    "zu",
+    "zum",
+    "zur",
+    "von",
+    "bei",
+    "mit",
+    "nach",
+    "vor",
+    "aus",
+    "durch",
+    "ohne",
+    "gegen",
+    "um",
+    "für",
+    "über",
+    "unter",
+    "zwischen",
+    "als",
+    // Pronouns / particles
+    "sich",
+    "uns",
+    "wir",
+    "ihre",
+    "ihren",
+    "ihrer",
+    "seinen",
+    "seine",
+    "seiner",
+    "deren",
+    "dessen",
+    "nicht",
+    "auch",
+    "nur",
+    "noch",
+    "schon",
+    "sowie",
+    "und",
+    "oder",
+    // Common verbs near role keywords
+    "ist",
+    "hat",
+    "sind",
+    "haben",
+    "wird",
+    "werden",
+    "kann",
+    "soll",
+    "bemühen",
+    "sollten",
+    "vertreten",
+    // Legal / role terms
+    "geschäftsführer",
+    "geschäftsführerin",
+    "geschäftsführung",
+    "gesellschafterin",
+    "gesellschafter",
+    "vorstand",
+    "vorständin",
+    "inhaber",
+    "inhaberin",
+    "vertretungsberechtigt",
+    "verantwortlich",
+    "domain",
+    "inhalt",
+    "inhalte",
+    "gmbh",
+    "ug",
+    "ag",
+    "ohg",
+    "gbr",
+    "kg",
+    "eg",
+];
+
 // ───────────────────────── Public API ─────────────────────────
 
 /// Extract every supported field from a free-form text blob.
@@ -233,109 +380,139 @@ static LEGAL_FORM_RE: Lazy<Regex> = Lazy::new(|| {
 /// `text` should be the visible text of an Impressum page (or the whole
 /// site — the extractors are forgiving).
 pub fn extract_all(text: &str) -> Extracted {
-    let mut out = Extracted::default();
+    // Fax (labeled) is extracted first so it can be excluded from phones.
+    let fax = extract_fax(text);
+    // IBANs contain long digit runs that the phone regex would otherwise pick
+    // up as bogus numbers, so skip any phone match overlapping an IBAN.
+    let iban_spans: Vec<(usize, usize)> = IBAN_DE_RE
+        .find_iter(text)
+        .map(|m| (m.start(), m.end()))
+        .collect();
+    let phones = collect_phones(text, &iban_spans)
+        .into_iter()
+        .filter(|p| fax.as_deref() != Some(p.as_str()))
+        .collect();
 
-    // Emails (plain + obfuscated)
-    let mut emails: BTreeSet<String> = BTreeSet::new();
-    for m in EMAIL_RE.find_iter(text) {
-        emails.insert(m.as_str().to_ascii_lowercase());
-    }
-    for cap in EMAIL_OBFUSCATED_RE.captures_iter(text) {
-        if let (Some(local), Some(host), Some(tld)) = (cap.get(1), cap.get(2), cap.get(3)) {
-            emails.insert(
-                format!("{}@{}.{}", local.as_str(), host.as_str(), tld.as_str())
-                    .to_ascii_lowercase(),
-            );
-        }
-    }
-    out.emails = emails.into_iter().collect();
+    let (postcode, city, street) = extract_address(text);
 
-    // Phones
-    let mut phones: BTreeSet<String> = BTreeSet::new();
-    for m in PHONE_RE.find_iter(text) {
-        let p = clean_phone(m.as_str());
-        if p.len() >= 7 {
-            phones.insert(p);
-        }
-    }
-    out.phones = phones.into_iter().collect();
+    let hr_number = extract_hr_number(text);
+    let hr_court = HR_COURT_RE
+        .captures(text)
+        .and_then(|c| c.get(1).map(|m| m.as_str().trim().to_string()));
+    let tax_number = TAX_NUMBER_RE
+        .captures(text)
+        .and_then(|c| c.get(1).map(|m| m.as_str().trim().to_string()));
 
-    // Address
-    if let Some(cap) = GERMAN_POSTCODE_AND_CITY_RE.captures(text) {
-        out.postcode = cap.get(1).map(|m| m.as_str().to_string());
-        out.city = cap.get(2).map(|m| m.as_str().trim().to_string());
+    Extracted {
+        emails: extract_emails(text),
+        phones,
+        fax,
+        postcode,
+        city,
+        street,
+        hr_number,
+        hr_court,
+        vat_id: extract_vat_id(text),
+        tax_number,
+        iban: extract_iban(text),
+        bic: extract_bic(text),
+        legal_form: extract_legal_form(text),
+        year_founded: extract_year_founded(text),
+        persons: extract_persons(text),
     }
-    if let Some(cap) = STREET_RE.captures(text) {
-        out.street = Some(format!(
-            "{} {}",
-            cap.get(1).map(|m| m.as_str().trim()).unwrap_or(""),
-            cap.get(2).map(|m| m.as_str().trim()).unwrap_or("")
-        ));
-    }
-
-    // HR / VAT / Tax
-    if let Some(cap) = HR_NUMBER_RE.captures(text) {
-        let raw = cap.get(0).unwrap().as_str();
-        out.hr_number = Some(raw.split_whitespace().collect::<Vec<_>>().join(" "));
-    }
-    if let Some(cap) = HR_COURT_RE.captures(text) {
-        out.hr_court = cap.get(1).map(|m| m.as_str().trim().to_string());
-    }
-    if let Some(m) = VAT_DE_RE.find(text) {
-        out.vat_id = Some(m.as_str().split_whitespace().collect::<Vec<_>>().join(""));
-    }
-    if let Some(cap) = TAX_NUMBER_RE.captures(text) {
-        out.tax_number = cap.get(1).map(|m| m.as_str().trim().to_string());
-    }
-
-    // Legal form
-    if let Some(m) = LEGAL_FORM_RE.find(text) {
-        out.legal_form = Some(canonicalize_legal_form(m.as_str()));
-    }
-
-    // Year founded
-    if let Some(cap) = YEAR_FOUNDED_RE.captures(text)
-        && let Some(year_match) = cap.get(1)
-        && let Ok(y) = year_match.as_str().parse::<i32>()
-        && (1700..=2100).contains(&y)
-    {
-        out.year_founded = Some(y);
-    }
-
-    // Persons
-    out.persons = extract_persons(text);
-
-    out
 }
 
 /// Return all email addresses (plain and obfuscated `info [at] domain [dot] de`),
-/// lowercased and deduplicated.
+/// lowercased and deduplicated. Code-fragment false positives (invalid TLDs
+/// like `.css`/`.js`, known junk domains) are filtered out.
 pub fn extract_emails(text: &str) -> Vec<String> {
     let mut emails: BTreeSet<String> = BTreeSet::new();
     for m in EMAIL_RE.find_iter(text) {
-        emails.insert(m.as_str().to_ascii_lowercase());
+        let e = m.as_str().to_ascii_lowercase();
+        if is_plausible_email(&e) {
+            emails.insert(e);
+        }
     }
     for cap in EMAIL_OBFUSCATED_RE.captures_iter(text) {
         if let (Some(local), Some(host), Some(tld)) = (cap.get(1), cap.get(2), cap.get(3)) {
-            emails.insert(
-                format!("{}@{}.{}", local.as_str(), host.as_str(), tld.as_str())
-                    .to_ascii_lowercase(),
-            );
+            let e = format!("{}@{}.{}", local.as_str(), host.as_str(), tld.as_str())
+                .to_ascii_lowercase();
+            if is_plausible_email(&e) {
+                emails.insert(e);
+            }
         }
     }
     emails.into_iter().collect()
 }
 
 /// Return all German phone numbers normalized to `+49…` (digits only).
+///
+/// Note: this returns *every* matched number, including any labeled as a fax.
+/// [`extract_all`] additionally removes the detected [`Extracted::fax`] from
+/// its `phones` list; use [`extract_fax`] to obtain it separately.
 pub fn extract_phones(text: &str) -> Vec<String> {
+    collect_phones(text, &[])
+}
+
+/// Collect normalized phone numbers, skipping matches that overlap any of the
+/// given byte spans (used by [`extract_all`] to drop IBAN digit runs).
+fn collect_phones(text: &str, skip_spans: &[(usize, usize)]) -> Vec<String> {
     let mut out: BTreeSet<String> = BTreeSet::new();
     for m in PHONE_RE.find_iter(text) {
+        if skip_spans
+            .iter()
+            .any(|(s, e)| m.start() < *e && m.end() > *s)
+        {
+            continue;
+        }
         let p = clean_phone(m.as_str());
         if p.len() >= 7 {
             out.insert(p);
         }
     }
     out.into_iter().collect()
+}
+
+/// Extract a labeled Fax / Telefax number, normalized to `+49…`.
+pub fn extract_fax(text: &str) -> Option<String> {
+    let cap = FAX_RE.captures(text)?;
+    let p = clean_phone(cap.get(1)?.as_str());
+    if p.len() >= 7 { Some(p) } else { None }
+}
+
+/// Extract a German IBAN, normalized without spaces (e.g. `DE89370400440532013000`).
+pub fn extract_iban(text: &str) -> Option<String> {
+    let m = IBAN_DE_RE.find(text)?;
+    let normalized: String = m
+        .as_str()
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .collect::<String>()
+        .to_ascii_uppercase();
+    // German IBAN is exactly 22 characters.
+    if normalized.len() == 22 {
+        Some(normalized)
+    } else {
+        None
+    }
+}
+
+/// Extract a BIC / SWIFT code (uppercased). Only accepted when it appears in a
+/// banking context (`BIC`, `SWIFT`, or `Bankverbindung` nearby) to avoid
+/// matching ordinary uppercase words.
+pub fn extract_bic(text: &str) -> Option<String> {
+    for m in BIC_RE.find_iter(text) {
+        let candidate = m.as_str().to_ascii_uppercase();
+        // The country part (chars 5-6) must be letters; require a banking
+        // keyword within the preceding ~40 chars of context.
+        let start = m.start();
+        let ctx_start = start.saturating_sub(40);
+        let ctx = text[ctx_start..start].to_ascii_lowercase();
+        if ctx.contains("bic") || ctx.contains("swift") || ctx.contains("bankverbindung") {
+            return Some(candidate);
+        }
+    }
+    None
 }
 
 /// Extract the first German address (`(postcode, city, street)`) from text.
@@ -359,21 +536,48 @@ pub fn extract_address(text: &str) -> (Option<String>, Option<String>, Option<St
 
 /// Detect the German legal form mentioned in the text (e.g. "GmbH", "GmbH & Co. KG", "AG").
 pub fn extract_legal_form(text: &str) -> Option<String> {
-    LEGAL_FORM_RE.find(text).map(|m| canonicalize_legal_form(m.as_str()))
+    LEGAL_FORM_RE
+        .find(text)
+        .map(|m| canonicalize_legal_form(m.as_str()))
 }
 
 /// Extract the HR (Handelsregister) number (e.g. `HRB 12345 B`).
 pub fn extract_hr_number(text: &str) -> Option<String> {
-    HR_NUMBER_RE
-        .captures(text)
-        .map(|c| c.get(0).unwrap().as_str().split_whitespace().collect::<Vec<_>>().join(" "))
+    HR_NUMBER_RE.captures(text).map(|c| {
+        c.get(0)
+            .unwrap()
+            .as_str()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+    })
 }
 
 /// Extract the German VAT-ID (USt-IdNr., format `DE` + 9 digits).
+///
+/// Matches are allowed to contain internal grouping spaces (`DE 123 456 789`).
+/// Any candidate that overlaps a detected IBAN is skipped, since an IBAN also
+/// starts with `DE` followed by digits.
 pub fn extract_vat_id(text: &str) -> Option<String> {
-    VAT_DE_RE
-        .find(text)
-        .map(|m| m.as_str().split_whitespace().collect::<Vec<_>>().join(""))
+    let iban_spans: Vec<(usize, usize)> = IBAN_DE_RE
+        .find_iter(text)
+        .map(|m| (m.start(), m.end()))
+        .collect();
+    for m in VAT_DE_RE.find_iter(text) {
+        let overlaps_iban = iban_spans
+            .iter()
+            .any(|(s, e)| m.start() < *e && m.end() > *s);
+        if overlaps_iban {
+            continue;
+        }
+        let normalized: String = m
+            .as_str()
+            .chars()
+            .filter(|c| !c.is_whitespace() && *c != '-')
+            .collect();
+        return Some(normalized.to_ascii_uppercase());
+    }
+    None
 }
 
 /// Extract the company's founding year.
@@ -387,15 +591,17 @@ pub fn extract_year_founded(text: &str) -> Option<i32> {
     }
 }
 
-/// Extract Geschäftsführer / Inhaber / Vorstand persons.
+/// Extract Geschäftsführer / Inhaber / Vorstand / Verantwortlicher persons.
 pub fn extract_persons(text: &str) -> Vec<Person> {
     let mut out = Vec::new();
     let mut seen: BTreeSet<String> = BTreeSet::new();
     for cap in GF_REGEX.captures_iter(text) {
         let Some(m) = cap.get(1) else { continue };
+        // The role keyword is in the full match (group 0), not group 1.
+        let role = detect_role(cap.get(0).map(|g| g.as_str()).unwrap_or(""));
         let trimmed = truncate_at_sentence_end(m.as_str().trim());
         for piece in split_persons(&trimmed) {
-            let p = parse_person(&piece);
+            let p = parse_person(&piece, role.clone());
             if p.last_name.is_none() {
                 continue;
             }
@@ -448,10 +654,25 @@ fn canonicalize_legal_form(raw: &str) -> String {
 
 fn truncate_at_sentence_end(s: &str) -> String {
     let stop_words = [
-        " Sitz", " Tel", " Telefon", " Fax", " E-Mail", " Email",
-        " USt", " Eingetragen", " HRB", " HRA", " Steuer", " Adresse",
-        " Anschrift", " Datenschutz", " Web", " Geschäfts",
-        " Handelsregister", " Amtsgericht", " UID",
+        " Sitz",
+        " Tel",
+        " Telefon",
+        " Fax",
+        " E-Mail",
+        " Email",
+        " USt",
+        " Eingetragen",
+        " HRB",
+        " HRA",
+        " Steuer",
+        " Adresse",
+        " Anschrift",
+        " Datenschutz",
+        " Web",
+        " Geschäfts",
+        " Handelsregister",
+        " Amtsgericht",
+        " UID",
     ];
     let mut end = s.len();
     for sw in stop_words {
@@ -463,7 +684,11 @@ fn truncate_at_sentence_end(s: &str) -> String {
     if let Some(pos) = s.find(['\n', '\r']) {
         end = end.min(pos);
     }
-    s[..end].trim().trim_end_matches(',').trim_end_matches('.').to_string()
+    s[..end]
+        .trim()
+        .trim_end_matches(',')
+        .trim_end_matches('.')
+        .to_string()
 }
 
 fn split_persons(raw: &str) -> Vec<String> {
@@ -484,20 +709,20 @@ fn split_persons(raw: &str) -> Vec<String> {
     parts
 }
 
-fn parse_person(raw: &str) -> Person {
+fn parse_person(raw: &str, role: Option<String>) -> Person {
     let cleaned = strip_titles(raw);
-    let parts: Vec<&str> = cleaned.split_whitespace().collect();
-    let role = if raw.to_ascii_lowercase().contains("gesch") {
-        Some("Geschäftsführer".to_string())
-    } else if raw.to_ascii_lowercase().contains("vorstand") {
-        Some("Vorstand".to_string())
-    } else if raw.to_ascii_lowercase().contains("inhaber") {
-        Some("Inhaber".to_string())
-    } else {
-        None
-    };
+    // Keep only tokens that plausibly belong to a person's name.
+    let parts: Vec<&str> = cleaned
+        .split_whitespace()
+        .filter(|t| is_valid_name_part(t))
+        .collect();
     match parts.len() {
-        0 => Person { full_raw: raw.to_string(), role, ..Default::default() },
+        // No usable name tokens — drop it (last_name stays None, filtered upstream).
+        0 => Person {
+            full_raw: raw.to_string(),
+            role,
+            ..Default::default()
+        },
         1 => Person {
             last_name: Some(parts[0].to_string()),
             full_raw: raw.to_string(),
@@ -513,16 +738,86 @@ fn parse_person(raw: &str) -> Person {
     }
 }
 
-fn strip_titles(s: &str) -> String {
-    let titles = [
-        "Dr.", "Dr", "Prof.", "Prof", "Dipl.-Ing.", "Dipl.-Kfm.", "Dipl.-Ök.",
-        "B.Sc.", "M.Sc.", "MBA", "B.A.", "M.A.", "Herr", "Frau", "RA",
-    ];
-    let mut out = s.to_string();
-    for t in titles {
-        out = out.replace(t, "");
+/// Detect the role from the full regex match (which still contains the keyword).
+fn detect_role(full_match: &str) -> Option<String> {
+    let lower = full_match.to_ascii_lowercase();
+    if lower.contains("gesch") {
+        Some("Geschäftsführer".to_string())
+    } else if lower.contains("vorstand") {
+        Some("Vorstand".to_string())
+    } else if lower.contains("verantwortlich") {
+        Some("Verantwortlich".to_string())
+    } else if lower.contains("inhaber") {
+        Some("Inhaber".to_string())
+    } else {
+        None
     }
-    out.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Reject tokens that are obviously not name parts: blocklisted words,
+/// single characters (truncation artifacts), or lowercase-initial tokens
+/// (German names are always capitalized). See issue #4.
+fn is_valid_name_part(s: &str) -> bool {
+    let trimmed = s.trim().trim_matches(|c: char| !c.is_alphanumeric());
+    if trimmed.chars().count() <= 1 {
+        return false;
+    }
+    if NOT_A_NAME.contains(&trimmed.to_lowercase().as_str()) {
+        return false;
+    }
+    match trimmed.chars().next() {
+        Some(first) => first.is_uppercase(),
+        None => false,
+    }
+}
+
+/// Strip academic/courtesy titles using whole-token matching so that names
+/// embedding a title substring (e.g. "Herrmann", "Draxler") are preserved.
+/// See issue #2.
+fn strip_titles(s: &str) -> String {
+    const TITLES: &[&str] = &[
+        "dr",
+        "dr.",
+        "prof",
+        "prof.",
+        "dipl.-ing.",
+        "dipl.-kfm.",
+        "dipl.-ök.",
+        "dipl",
+        "b.sc.",
+        "m.sc.",
+        "mba",
+        "b.a.",
+        "m.a.",
+        "ll.m.",
+        "ll.b.",
+        "herr",
+        "frau",
+        "ra",
+        "h.c.",
+    ];
+    s.split_whitespace()
+        .filter(|token| {
+            let key = token.to_ascii_lowercase();
+            !TITLES.contains(&key.as_str())
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Reject emails whose TLD or domain only ever appears in code fragments.
+/// See issue #3.
+fn is_plausible_email(email: &str) -> bool {
+    let Some((_, domain)) = email.rsplit_once('@') else {
+        return false;
+    };
+    if BLOCKED_EMAIL_DOMAINS.contains(&domain) {
+        return false;
+    }
+    match domain.rsplit_once('.') {
+        Some((_, tld)) => !INVALID_EMAIL_TLDS.contains(&tld),
+        None => false,
+    }
 }
 
 #[cfg(test)]
@@ -546,7 +841,10 @@ mod tests {
 
     #[test]
     fn legal_forms() {
-        assert_eq!(extract_legal_form("Muster GmbH & Co. KG"), Some("GmbH & Co. KG".into()));
+        assert_eq!(
+            extract_legal_form("Muster GmbH & Co. KG"),
+            Some("GmbH & Co. KG".into())
+        );
         assert_eq!(extract_legal_form("Muster GmbH"), Some("GmbH".into()));
         assert_eq!(
             extract_legal_form("Muster UG (haftungsbeschränkt)"),
@@ -565,7 +863,10 @@ mod tests {
 
     #[test]
     fn vat_id_extracted() {
-        assert_eq!(extract_vat_id("USt-ID: DE 123456789"), Some("DE123456789".into()));
+        assert_eq!(
+            extract_vat_id("USt-ID: DE 123456789"),
+            Some("DE123456789".into())
+        );
     }
 
     #[test]
@@ -598,6 +899,10 @@ mod tests {
         assert!(d.emails.contains(&"info@musterreinigung.de".to_string()));
         assert_eq!(d.year_founded, Some(1985));
         assert_eq!(d.vat_id.as_deref(), Some("DE123456789"));
-        assert!(d.persons.iter().any(|p| p.last_name.as_deref() == Some("Müller")));
+        assert!(
+            d.persons
+                .iter()
+                .any(|p| p.last_name.as_deref() == Some("Müller"))
+        );
     }
 }
