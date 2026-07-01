@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 320" width="1280" height="320" role="img" aria-label="german-impressum-extractor — structured data from German B2B Impressum text, pure Rust, no async">
+  <defs>
+    <radialGradient id="bg" cx="0.15" cy="0.1" r="1.1">
+      <stop offset="0" stop-color="#161b22"/>
+      <stop offset="1" stop-color="#0d1117"/>
+    </radialGradient>
+    <style>
+      .mono { font-family: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; }
+      .sans { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    </style>
+  </defs>
+
+  <rect width="1280" height="320" fill="url(#bg)"/>
+  <rect width="1280" height="320" fill="none" stroke="#21262d" stroke-width="2"/>
+
+  <!-- German-flag accent bar (black · red · gold) -->
+  <g>
+    <rect x="0" y="0"   width="10" height="106.7" fill="#2b2b2b"/>
+    <rect x="0" y="106.7" width="10" height="106.6" fill="#dd0000"/>
+    <rect x="0" y="213.3" width="10" height="106.7" fill="#ffce00"/>
+  </g>
+
+  <!-- Small German flag chip, top-right -->
+  <g transform="translate(1150,44)">
+    <rect x="0" y="0"  width="66" height="14" fill="#2b2b2b"/>
+    <rect x="0" y="14" width="66" height="14" fill="#dd0000"/>
+    <rect x="0" y="28" width="66" height="14" fill="#ffce00"/>
+    <rect x="0" y="0"  width="66" height="42" fill="none" stroke="#30363d" stroke-width="1"/>
+  </g>
+
+  <!-- Title -->
+  <text x="80" y="126" class="mono" font-size="46" font-weight="700" fill="#e6edf3">german-impressum-extractor</text>
+
+  <!-- Tagline -->
+  <text x="82" y="174" class="sans" font-size="22" fill="#8b949e">Structured data from German B2B Impressum text — pure Rust, no async runtime.</text>
+
+  <!-- Feature chips -->
+  <g class="mono" font-size="18" fill="#d8b98a">
+    <g>
+      <rect x="80"  y="221" width="82"  height="34" rx="17" fill="#161b22" stroke="#30363d"/>
+      <text x="121" y="243" text-anchor="middle">Email</text>
+    </g>
+    <g>
+      <rect x="176" y="221" width="82"  height="34" rx="17" fill="#161b22" stroke="#30363d"/>
+      <text x="217" y="243" text-anchor="middle">Phone</text>
+    </g>
+    <g>
+      <rect x="272" y="221" width="102" height="34" rx="17" fill="#161b22" stroke="#30363d"/>
+      <text x="323" y="243" text-anchor="middle">Address</text>
+    </g>
+    <g>
+      <rect x="388" y="221" width="92"  height="34" rx="17" fill="#161b22" stroke="#30363d"/>
+      <text x="434" y="243" text-anchor="middle">HR-Nr.</text>
+    </g>
+    <g>
+      <rect x="494" y="221" width="122" height="34" rx="17" fill="#161b22" stroke="#30363d"/>
+      <text x="555" y="243" text-anchor="middle">USt-IdNr.</text>
+    </g>
+    <g>
+      <rect x="630" y="221" width="112" height="34" rx="17" fill="#161b22" stroke="#30363d"/>
+      <text x="686" y="243" text-anchor="middle">IBAN · BIC</text>
+    </g>
+    <g>
+      <rect x="756" y="221" width="112" height="34" rx="17" fill="#161b22" stroke="#30363d"/>
+      <text x="812" y="243" text-anchor="middle">Persons</text>
+    </g>
+  </g>
+</svg>
