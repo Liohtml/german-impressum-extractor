@@ -1,9 +1,18 @@
-# german-impressum-extractor
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/banner-dark.svg">
+    <img alt="german-impressum-extractor — structured data from German B2B Impressum text, pure Rust, no async" src="assets/banner-light.svg" width="100%">
+  </picture>
+</p>
 
-[![CI](https://github.com/Liohtml/german-impressum-extractor/actions/workflows/ci.yml/badge.svg)](https://github.com/Liohtml/german-impressum-extractor/actions/workflows/ci.yml)
-[![MSRV 1.85](https://img.shields.io/badge/MSRV-1.85-b7410e.svg?logo=rust)](Cargo.toml)
-[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
-[![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](https://github.com/rust-secure-code/safety-dance/)
+<p align="center">
+  <a href="https://github.com/Liohtml/german-impressum-extractor/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Liohtml/german-impressum-extractor/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="Cargo.toml"><img alt="MSRV 1.85" src="https://img.shields.io/badge/MSRV-1.85-b7410e.svg?logo=rust"></a>
+  <a href="#license"><img alt="License: MIT OR Apache-2.0" src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg"></a>
+  <a href="https://github.com/rust-secure-code/safety-dance/"><img alt="unsafe forbidden" src="https://img.shields.io/badge/unsafe-forbidden-success.svg"></a>
+</p>
+
+# german-impressum-extractor
 
 Extract structured data from German B2B website Impressum text — pure Rust, no async runtime needed.
 
