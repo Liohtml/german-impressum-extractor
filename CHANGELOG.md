@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `extract_tax_number` — public Steuernummer extractor, matching the rest of the
+  granular API (#31).
+- `extract_hr_court` — public Handelsregister-court extractor (#26).
+- MSRV verification job in CI (builds + tests on Rust 1.85) (#29).
+- Regression tests for the char-boundary panics, TLD filtering, KGaA, HR-court,
+  and Steuernummer abbreviations, plus broader coverage of the core extractors
+  (#24).
 - `extract_fax` + `Extracted::fax` — labeled Fax/Telefax numbers, removed from
   `phones` in `extract_all` (#10).
 - `extract_iban` + `Extracted::iban` and `extract_bic` + `Extracted::bic` —
@@ -17,6 +24,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions CI: fmt, clippy, tests (default + `serde`), doc tests (#7).
 
 ### Fixed
+- `extract_bic` and `truncate_at_sentence_end` no longer panic on multi-byte
+  UTF-8 input (zero-width spaces, soft hyphens); byte offsets are snapped to a
+  char boundary via an MSRV-safe `floor_char_boundary` helper (#13, #14, #25).
+- `extract_emails` now validates the TLD against an allowlist of real top-level
+  domains, dropping prose false positives like `th@matters.discover` (#15).
+- `hr_court` no longer swallows the HR-number prefix on separator-free lines
+  (`Amtsgericht Berlin HRB 12345` → `"Berlin"`, not `"Berlin HRB"`) (#26).
+- KGaA legal forms are recognized: `GmbH & Co. KGaA` and `KGaA` are no longer
+  misclassified as `GmbH`/none (#30).
+- `TAX_NUMBER_RE` now matches the abbreviations `St.-Nr.`, `StNr.`,
+  `Steuer-Nr.` and `St.Nr.` in addition to the full word (#32).
 - `Person.role` was always `None`; the role is now detected from the matched
   keyword (#1).
 - `strip_titles` corrupted names containing title substrings (e.g. "Herrmann"
@@ -29,6 +47,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`DE 123 456 789`) and avoids mis-reading an IBAN prefix as a VAT ID (#5).
 
 ### Changed
+- Dropped the `once_cell` dependency in favor of `std::sync::LazyLock`
+  (available at the 1.85 MSRV) (#27).
+- Pinned all GitHub Actions in CI to commit SHAs (#16).
+- `Cargo.toml` `documentation` now points at the repository README instead of a
+  not-yet-live docs.rs URL (#28).
 - README: replaced the unpublished crates.io install snippet with a git
   dependency and swapped the broken crates.io/docs.rs badges for a CI badge (#8).
 
