@@ -75,8 +75,8 @@
 
 use std::collections::BTreeSet;
 
-use once_cell::sync::Lazy;
 use regex::Regex;
+use std::sync::LazyLock;
 use unicode_normalization::UnicodeNormalization;
 
 /// Container for everything `extract_all` returns.
@@ -133,17 +133,17 @@ pub struct Person {
 
 // ───────────────────────── Regexes ─────────────────────────
 
-static EMAIL_RE: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"(?i)[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}").unwrap());
+static EMAIL_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}").unwrap());
 
-static EMAIL_OBFUSCATED_RE: Lazy<Regex> = Lazy::new(|| {
+static EMAIL_OBFUSCATED_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"(?i)\b([a-z0-9._%+\-]+)\s*[\[\(]?\s*(?:at|@)\s*[\]\)]?\s*([a-z0-9.\-]+)\s*[\[\(]?\s*(?:dot|\.)\s*[\]\)]?\s*([a-z]{2,})\b",
     )
     .unwrap()
 });
 
-static PHONE_RE: Lazy<Regex> = Lazy::new(|| {
+static PHONE_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"(?x)
         (?:\+49|0049|0)
@@ -159,40 +159,51 @@ static PHONE_RE: Lazy<Regex> = Lazy::new(|| {
     .unwrap()
 });
 
-static GERMAN_POSTCODE_AND_CITY_RE: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"\b(\d{5})\s+([A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-/. ]{1,40})\b").unwrap());
+static GERMAN_POSTCODE_AND_CITY_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\b(\d{5})\s+([A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-/. ]{1,40})\b").unwrap());
 
-static STREET_RE: Lazy<Regex> = Lazy::new(|| {
+static STREET_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"\b([A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-./ ]{2,60}?(?:str(?:asse|aße|\.)|weg|allee|platz|ring|gasse|damm))\s+(\d{1,4}[a-zA-Z]?(?:[\-–]\d{1,4}[a-zA-Z]?)?)\b",
     )
     .unwrap()
 });
 
-static HR_NUMBER_RE: Lazy<Regex> = Lazy::new(|| {
+static HR_NUMBER_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)\bHR[AB]?\s*[:\-]?\s*(?:Nr\.?\s*)?(\d{2,7}(?:\s*[A-Z])?)\b").unwrap()
 });
 
-static HR_COURT_RE: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"(?i)Amtsgericht\s+([A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-./ ]{2,40})").unwrap());
+// The court-name capture stops at the first digit, comma or newline (none of
+// those characters are in the class). A trailing Handelsregister prefix
+// (`HRB`/`HRA`) that shares the line with the court is stripped afterwards by
+// `clean_hr_court`. See issue #26.
+static HR_COURT_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)Amtsgericht\s+([A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-./ ()]{1,60})").unwrap()
+});
+
+// A Handelsregister prefix (`HRA`/`HRB`/bare `HR`) that the greedy court-name
+// capture may have swallowed when no separator preceded it. Case-sensitive so
+// it never clips a city name like "Ahrensburg". See issue #26.
+static HR_SUFFIX_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\s+HR[AB]?\b").unwrap());
 
 // USt-IdNr.: `DE` followed by exactly 9 digits, which may be grouped with
 // internal spaces (e.g. `DE 123 456 789`). Normalization strips the spaces.
-static VAT_DE_RE: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"(?i)\bDE[\s\-]?(?:\d[\s\-]?){8}\d\b").unwrap());
+static VAT_DE_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)\bDE[\s\-]?(?:\d[\s\-]?){8}\d\b").unwrap());
 
 // German IBAN: `DE` + 2 check digits + 18 BBAN digits (22 chars total),
 // commonly written in groups of four with spaces.
-static IBAN_DE_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?i)\bDE(?:[\s\-]?\d){20}\b").unwrap());
+static IBAN_DE_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)\bDE(?:[\s\-]?\d){20}\b").unwrap());
 
 // BIC / SWIFT: 4 letters (bank) + 2 letters (country) + 2 alphanumerics
 // (location) + optional 3 alphanumerics (branch). Matched case-insensitively
 // and only accepted in a banking context (see `extract_bic`).
-static BIC_RE: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"(?i)\b[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}(?:[A-Z0-9]{3})?\b").unwrap());
+static BIC_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)\b[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}(?:[A-Z0-9]{3})?\b").unwrap());
 
 // A fax/telefax label immediately followed by a German phone number.
-static FAX_RE: Lazy<Regex> = Lazy::new(|| {
+static FAX_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"(?ix)
         (?:tele)?fax\.?\s*[:\-]?\s*
@@ -206,10 +217,20 @@ static FAX_RE: Lazy<Regex> = Lazy::new(|| {
     .unwrap()
 });
 
-static TAX_NUMBER_RE: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"(?i)Steuer-?nummer[:\s]*([\d/\s]{8,20})").unwrap());
+// Matches "Steuernummer" plus the common abbreviations "Steuer-Nr.",
+// "St.-Nr.", "StNr." and "St.Nr.". See issue #32.
+static TAX_NUMBER_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?ix)
+        (?:Steuer-?nummer | Steuer-?Nr\.? | St\.?-?Nr\.?)
+        [:\s]*
+        ([\d/\s]{8,20})
+        ",
+    )
+    .unwrap()
+});
 
-static GF_REGEX: Lazy<Regex> = Lazy::new(|| {
+static GF_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"(?ix)
         (?:
@@ -230,7 +251,7 @@ static GF_REGEX: Lazy<Regex> = Lazy::new(|| {
     .unwrap()
 });
 
-static YEAR_FOUNDED_RE: Lazy<Regex> = Lazy::new(|| {
+static YEAR_FOUNDED_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"(?ix)
         \b
@@ -243,12 +264,14 @@ static YEAR_FOUNDED_RE: Lazy<Regex> = Lazy::new(|| {
     .unwrap()
 });
 
-static LEGAL_FORM_RE: Lazy<Regex> = Lazy::new(|| {
+static LEGAL_FORM_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"(?ix)
         \b
         (
-            GmbH\s*&\s*Co\.?\s*KG
+            GmbH\s*&\s*Co\.?\s*KGaA
+          | GmbH\s*&\s*Co\.?\s*KG
+          | KGaA
           | GmbH
           | UG\s*\(?haftungsbeschr(?:ä|ae)nkt\)?
           | UG
@@ -268,12 +291,24 @@ static LEGAL_FORM_RE: Lazy<Regex> = Lazy::new(|| {
 
 // ───────────────────────── Blocklists ─────────────────────────
 
-/// TLDs that only ever appear in code fragments (CSS imports, JS bundles,
-/// template artifacts), never in a real email address. See issue #3.
-const INVALID_EMAIL_TLDS: &[&str] = &[
-    "css", "scss", "less", "js", "mjs", "cjs", "ts", "tsx", "jsx", "vue", "html", "htm", "php",
-    "png", "jpg", "jpeg", "svg", "gif", "webp", "map", "json", "xml", "woff", "woff2", "ttf",
-    "soweit",
+/// Allowlist of real top-level domains an email address may end in.
+///
+/// The email regex accepts any `[a-z]{2,}` sequence as a TLD, which lets
+/// code fragments (`…@….css`, `…@….js`) *and* prose words picked out of
+/// HTML-to-text output (`…matters. Discover…` → `th@matters.discover`) leak
+/// through as bogus addresses. Validating the TLD against a compact set of
+/// genuine TLDs — country-code plus the common generics — removes both
+/// classes of false positive. See issues #3 and #15.
+const REAL_TLDS: &[&str] = &[
+    // Generic
+    "com", "net", "org", "info", "biz", "name", "pro", "io", "co", "gov", "edu", "mil", "int", "eu",
+    "app", "dev", "shop", "online", "site", "tech", "gmbh", "email", "de", "berlin",
+    // German-speaking / neighbouring Europe (primary market)
+    "at", "ch", "li", "lu", "nl", "be", "fr", "it", "es", "pt", "pl", "cz", "sk", "hu", "dk", "se",
+    "no", "fi", "is", "ie", "uk", "gr", "ro", "bg", "hr", "si", "rs", "ua",
+    // Rest of world (common in international B2B)
+    "us", "ca", "mx", "br", "ar", "au", "nz", "jp", "cn", "kr", "in", "sg", "hk", "tw", "za", "ru",
+    "tr", "ae", "sa", "il",
 ];
 
 /// Domains observed as false positives from theme/widget code. See issue #3.
@@ -396,12 +431,8 @@ pub fn extract_all(text: &str) -> Extracted {
     let (postcode, city, street) = extract_address(text);
 
     let hr_number = extract_hr_number(text);
-    let hr_court = HR_COURT_RE
-        .captures(text)
-        .and_then(|c| c.get(1).map(|m| m.as_str().trim().to_string()));
-    let tax_number = TAX_NUMBER_RE
-        .captures(text)
-        .and_then(|c| c.get(1).map(|m| m.as_str().trim().to_string()));
+    let hr_court = extract_hr_court(text);
+    let tax_number = extract_tax_number(text);
 
     Extracted {
         emails: extract_emails(text),
@@ -506,7 +537,10 @@ pub fn extract_bic(text: &str) -> Option<String> {
         // The country part (chars 5-6) must be letters; require a banking
         // keyword within the preceding ~40 chars of context.
         let start = m.start();
-        let ctx_start = start.saturating_sub(40);
+        // Snap to a char boundary so multi-byte codepoints in the preceding
+        // context (e.g. a zero-width space) can't cause a mid-codepoint slice
+        // panic. See issue #13.
+        let ctx_start = floor_char_boundary(text, start.saturating_sub(40));
         let ctx = text[ctx_start..start].to_ascii_lowercase();
         if ctx.contains("bic") || ctx.contains("swift") || ctx.contains("bankverbindung") {
             return Some(candidate);
@@ -551,6 +585,30 @@ pub fn extract_hr_number(text: &str) -> Option<String> {
             .collect::<Vec<_>>()
             .join(" ")
     })
+}
+
+/// Extract the Handelsregister court that follows an `Amtsgericht` label
+/// (e.g. `"Berlin"`, `"Berlin (Charlottenburg)"`).
+///
+/// A Handelsregister prefix sharing the same line as the court name
+/// (`Amtsgericht Berlin HRB 12345`) is stripped, so this returns `"Berlin"`
+/// rather than `"Berlin HRB"`. See issue #26.
+pub fn extract_hr_court(text: &str) -> Option<String> {
+    HR_COURT_RE
+        .captures(text)
+        .and_then(|c| c.get(1))
+        .map(|m| clean_hr_court(m.as_str()))
+        .filter(|s| !s.is_empty())
+}
+
+/// Extract a Steuernummer (local German tax number), e.g. `"28/815/0815 1"`.
+///
+/// Recognizes the full word `Steuernummer` as well as the common abbreviations
+/// `Steuer-Nr.`, `St.-Nr.`, `StNr.` and `St.Nr.`. See issues #31 and #32.
+pub fn extract_tax_number(text: &str) -> Option<String> {
+    TAX_NUMBER_RE
+        .captures(text)
+        .and_then(|c| c.get(1).map(|m| m.as_str().trim().to_string()))
 }
 
 /// Extract the German VAT-ID (USt-IdNr., format `DE` + 9 digits).
@@ -620,6 +678,23 @@ pub fn extract_persons(text: &str) -> Vec<Person> {
 
 // ───────────────────────── Helpers ─────────────────────────
 
+/// Snap a byte `index` down to the nearest UTF-8 character boundary at or
+/// below it, returning a value that is always safe to slice `s` at.
+///
+/// This is a hand-rolled, MSRV-safe equivalent of `str::floor_char_boundary`
+/// (only stabilized in Rust 1.91, above this crate's 1.85 MSRV). Prevents the
+/// mid-codepoint slice panics reported in issues #13 and #14.
+fn floor_char_boundary(s: &str, index: usize) -> usize {
+    if index >= s.len() {
+        return s.len();
+    }
+    let mut i = index;
+    while i > 0 && !s.is_char_boundary(i) {
+        i -= 1;
+    }
+    i
+}
+
 fn clean_phone(s: &str) -> String {
     let s = s.nfc().collect::<String>();
     let s: String = s
@@ -639,9 +714,27 @@ fn clean_phone(s: &str) -> String {
     }
 }
 
+/// Strip a trailing Handelsregister prefix (`HRB`/`HRA`/`HR`) that the greedy
+/// court-name capture may have swallowed, then trim. See issue #26.
+fn clean_hr_court(raw: &str) -> String {
+    let trimmed = raw.trim();
+    let cut = HR_SUFFIX_RE
+        .find(trimmed)
+        .map(|m| m.start())
+        .unwrap_or(trimmed.len());
+    trimmed[..cut].trim().to_string()
+}
+
 fn canonicalize_legal_form(raw: &str) -> String {
     let r = raw.trim();
-    if r.to_ascii_lowercase().contains("co") && r.to_ascii_lowercase().contains("kg") {
+    let lower = r.to_ascii_lowercase();
+    // KGaA variants must be checked before the plain KG / GmbH cases, since
+    // "GmbH & Co. KGaA" also contains "co", "kg", and "gmbh". See issue #30.
+    if lower.contains("co") && lower.contains("kgaa") {
+        "GmbH & Co. KGaA".to_string()
+    } else if lower.contains("kgaa") {
+        "KGaA".to_string()
+    } else if lower.contains("co") && lower.contains("kg") {
         "GmbH & Co. KG".to_string()
     } else if r.to_ascii_uppercase().contains("GMBH") {
         "GmbH".to_string()
@@ -684,6 +777,10 @@ fn truncate_at_sentence_end(s: &str) -> String {
     if let Some(pos) = s.find(['\n', '\r']) {
         end = end.min(pos);
     }
+    // A stop-word/newline byte offset can land inside a multi-byte codepoint
+    // (soft hyphens, non-breaking spaces, em-dashes …); snap back to a valid
+    // boundary before slicing to avoid a panic. See issue #14.
+    let end = floor_char_boundary(s, end);
     s[..end]
         .trim()
         .trim_end_matches(',')
@@ -805,8 +902,9 @@ fn strip_titles(s: &str) -> String {
         .join(" ")
 }
 
-/// Reject emails whose TLD or domain only ever appears in code fragments.
-/// See issue #3.
+/// Reject emails whose domain is blocklisted or whose TLD is not a real
+/// top-level domain (filters both code fragments and prose false positives).
+/// See issues #3 and #15.
 fn is_plausible_email(email: &str) -> bool {
     let Some((_, domain)) = email.rsplit_once('@') else {
         return false;
@@ -815,7 +913,7 @@ fn is_plausible_email(email: &str) -> bool {
         return false;
     }
     match domain.rsplit_once('.') {
-        Some((_, tld)) => !INVALID_EMAIL_TLDS.contains(&tld),
+        Some((_, tld)) => REAL_TLDS.contains(&tld),
         None => false,
     }
 }

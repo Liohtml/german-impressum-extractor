@@ -2,8 +2,9 @@
 //! change set. Each test references the issue number it guards.
 
 use german_impressum_extractor::{
-    extract_all, extract_bic, extract_emails, extract_fax, extract_iban, extract_persons,
-    extract_vat_id,
+    extract_address, extract_all, extract_bic, extract_emails, extract_fax, extract_hr_court,
+    extract_hr_number, extract_iban, extract_legal_form, extract_persons, extract_phones,
+    extract_tax_number, extract_vat_id,
 };
 
 // ───────────────────────── Issue #1: Person.role ─────────────────────────
@@ -225,4 +226,166 @@ fn full_impressum_smoke() {
             .iter()
             .any(|p| p.last_name.as_deref() == Some("Müller"))
     );
+}
+
+// ───────────── Issues #13 / #14 / #25: char-boundary panics ─────────────
+
+#[test]
+fn bic_with_multibyte_context_does_not_panic() {
+    // Force the 40-byte context window preceding the BIC candidate to begin
+    // inside a multi-byte character. 25 × 'ä' = 50 bytes; the candidate starts
+    // at byte 55, so the window start (byte 15) lands mid-codepoint. Before the
+    // fix this panicked with "byte index 15 is not a char boundary" (#13).
+    let text = format!("{}!bic DEUTDEDB", "ä".repeat(25));
+    assert_eq!(extract_bic(&text), Some("DEUTDEDB".into()));
+}
+
+#[test]
+fn bic_zero_width_space_reproducer_does_not_panic() {
+    // Exact reproducer from issue #13.
+    let _ = extract_bic("Bankverbindung\u{200B}DEUTDEDB");
+}
+
+#[test]
+fn persons_with_multibyte_control_chars_do_not_panic() {
+    // Soft hyphen / non-breaking space near the name must not trigger a
+    // mid-codepoint slice in truncate_at_sentence_end (#14).
+    let p = extract_persons("Geschäftsführer: Hans Müller\u{00AD}\nSitz: Berlin");
+    assert!(p.iter().any(|x| x.last_name.as_deref() == Some("Müller")));
+    // Non-breaking space is captured by \s inside the name group.
+    let _ = extract_persons("Geschäftsführer: Hans\u{00A0}Müller\u{00A0}Sitz Berlin");
+}
+
+// ───────────── Issue #15: natural-language words as TLDs ─────────────
+
+#[test]
+fn prose_words_are_not_accepted_as_tlds() {
+    let txt = "th@matters.discover cre@ed.should info@link.missing gest@tet.siehe \
+               aber info@firma.de ist echt";
+    let e = extract_emails(txt);
+    assert_eq!(e, vec!["info@firma.de".to_string()], "got {e:?}");
+}
+
+#[test]
+fn common_real_tlds_are_kept() {
+    for addr in [
+        "kontakt@firma.de",
+        "sales@company.com",
+        "info@verein.org",
+        "hello@startup.io",
+        "kontakt@firma.at",
+        "info@firma.ch",
+    ] {
+        let e = extract_emails(addr);
+        assert_eq!(e, vec![addr.to_string()], "dropped valid address");
+    }
+}
+
+// ───────────── Issue #26: HR court captures HR number prefix ─────────────
+
+#[test]
+fn hr_court_stops_before_hr_number() {
+    let d = extract_all("Amtsgericht Berlin HRB 12345 B");
+    assert_eq!(
+        d.hr_court.as_deref(),
+        Some("Berlin"),
+        "got {:?}",
+        d.hr_court
+    );
+    assert!(d.hr_number.is_some());
+}
+
+#[test]
+fn hr_court_multiword_is_preserved() {
+    assert_eq!(
+        extract_hr_court("Amtsgericht Frankfurt am Main HRB 4321"),
+        Some("Frankfurt am Main".into())
+    );
+    assert_eq!(
+        extract_hr_court("Amtsgericht München"),
+        Some("München".into())
+    );
+    // Separator form already worked; make sure it still does.
+    assert_eq!(
+        extract_hr_court("Amtsgericht Berlin (Charlottenburg), HRB 12345 B"),
+        Some("Berlin (Charlottenburg)".into())
+    );
+}
+
+// ───────────── Issue #30: KGaA legal form ─────────────
+
+#[test]
+fn kgaa_legal_forms_are_recognized() {
+    assert_eq!(
+        extract_legal_form("Henkel GmbH & Co. KGaA"),
+        Some("GmbH & Co. KGaA".into())
+    );
+    assert_eq!(extract_legal_form("Merck KGaA"), Some("KGaA".into()));
+    // Regression: plain GmbH & Co. KG must not be swallowed by the KGaA branch.
+    assert_eq!(
+        extract_legal_form("Muster GmbH & Co. KG"),
+        Some("GmbH & Co. KG".into())
+    );
+}
+
+// ───────────── Issue #31: public extract_tax_number ─────────────
+
+#[test]
+fn tax_number_is_publicly_extractable() {
+    assert_eq!(
+        extract_tax_number("Steuernummer: 28/815/0815 1"),
+        Some("28/815/0815 1".into())
+    );
+}
+
+// ───────────── Issue #32: Steuernummer abbreviations ─────────────
+
+#[test]
+fn tax_number_abbreviations() {
+    assert!(extract_tax_number("Steuernummer: 28/815/0815 1").is_some());
+    assert!(extract_tax_number("St.-Nr.: 28/815/0815 1").is_some());
+    assert!(extract_tax_number("StNr. 28/815/0815 1").is_some());
+    assert!(extract_tax_number("Steuer-Nr. 097/233/12345").is_some());
+    assert!(extract_tax_number("St.Nr. 28 / 012 / 34567").is_some());
+}
+
+// ───────────── Issue #24: broaden coverage of critical extractors ─────────────
+
+#[test]
+fn person_with_title_and_middle_name() {
+    let p = extract_persons("Geschäftsführer: Prof. Dr. Karl-Heinz von Müller");
+    assert!(
+        p.iter().any(|x| x.last_name.as_deref() == Some("Müller")),
+        "got {p:?}"
+    );
+}
+
+#[test]
+fn bic_not_extracted_without_keyword_context() {
+    assert_eq!(extract_bic("Ihre DEUTDEDB Referenz lautet XY."), None);
+}
+
+#[test]
+fn phone_with_slash_format() {
+    let phones = extract_phones("Telefon: 030/123 45 67");
+    assert!(!phones.is_empty(), "no phone parsed");
+    assert!(phones[0].starts_with("+49"), "got {phones:?}");
+}
+
+#[test]
+fn address_postcode_before_city() {
+    let (pc, city, _) = extract_address("10115 Berlin, Hauptstraße 1");
+    assert_eq!(pc.as_deref(), Some("10115"));
+    assert_eq!(city.as_deref(), Some("Berlin"));
+}
+
+#[test]
+fn street_multiword_with_suffix() {
+    let (_, _, street) = extract_address("Alte Poststraße 3, 45127 Essen");
+    assert_eq!(street.as_deref(), Some("Alte Poststraße 3"));
+}
+
+#[test]
+fn hr_number_hra_variant() {
+    assert!(extract_hr_number("Handelsregister HRA 5678").is_some());
 }
