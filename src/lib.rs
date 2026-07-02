@@ -102,6 +102,7 @@ mod candidate;
 /// Container for everything `extract_all` returns.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct Extracted {
     /// Raw email addresses found, normalized to lowercase. De-duplicated.
     pub emails: Vec<String>,
@@ -135,6 +136,16 @@ pub struct Extracted {
     /// Persons mentioned in the role of Geschäftsführer / Inhaber / Vorstand /
     /// Verantwortlicher / Vertretungsberechtigt.
     pub persons: Vec<Person>,
+    /// Handelsregister section: "HRA" or "HRB", if determinable from the HR number.
+    pub register_type: Option<String>,
+    /// Supervisory authority ("Aufsichtsbehörde"), if labeled.
+    pub supervisory_authority: Option<String>,
+    /// Responsible professional chamber ("zuständige Kammer" / "Berufskammer"), if labeled.
+    pub professional_chamber: Option<String>,
+    /// De-Mail address, if labeled "De-Mail:".
+    pub de_mail: Option<String>,
+    /// EU Online-Dispute-Resolution (OS-Plattform) URL, if present.
+    pub dispute_resolution_url: Option<String>,
 }
 
 /// A single person mentioned in the Impressum (typically a managing director).
@@ -559,6 +570,11 @@ fn build_extracted(doc: &segment::Document) -> Extracted {
         legal_form: extract_legal_form_core(text),
         year_founded: extract_year_founded_core(text),
         persons: extract_persons_core(text),
+        register_type: extract_register_type_core(text),
+        supervisory_authority: extract_supervisory_authority_core(text),
+        professional_chamber: extract_professional_chamber_core(text),
+        de_mail: extract_de_mail_core(text),
+        dispute_resolution_url: extract_dispute_resolution_url_core(text),
     }
 }
 

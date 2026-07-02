@@ -58,3 +58,31 @@ fn register_type_from_hr() {
     );
     assert_eq!(extract_register_type("kein register hier"), None);
 }
+
+use german_impressum_extractor::extract_all;
+
+#[test]
+fn extract_all_includes_new_fields() {
+    let text = "\
+Muster GmbH
+Handelsregister HRB 12345
+Aufsichtsbehörde: Landesamt für Gesundheit
+Zuständige Kammer: IHK Berlin
+De-Mail: kontakt@firma.de-mail.de
+Online-Streitbeilegung: https://ec.europa.eu/consumers/odr/";
+    let d = extract_all(text);
+    assert_eq!(d.register_type.as_deref(), Some("HRB"));
+    assert_eq!(
+        d.supervisory_authority.as_deref(),
+        Some("Landesamt für Gesundheit")
+    );
+    assert_eq!(d.professional_chamber.as_deref(), Some("IHK Berlin"));
+    assert_eq!(d.de_mail.as_deref(), Some("kontakt@firma.de-mail.de"));
+    assert_eq!(
+        d.dispute_resolution_url.as_deref(),
+        Some("https://ec.europa.eu/consumers/odr/")
+    );
+    // Existing fields still work.
+    assert_eq!(d.legal_form.as_deref(), Some("GmbH"));
+    assert_eq!(d.hr_number.as_deref(), Some("HRB 12345"));
+}
