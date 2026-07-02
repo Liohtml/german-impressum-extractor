@@ -22,6 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - "Verantwortlich" (§18 Abs. 2 MStV / §55 RStV) person role detection (#11).
 - Integration test suite covering all addressed issues (`tests/regressions.rs`) (#6).
 - GitHub Actions CI: fmt, clippy, tests (default + `serde`), doc tests (#7).
+- Text normalization layer (Unicode NFC, invisible-char / whitespace cleanup,
+  well-formed HTML entity decoding) applied to all input before extraction.
+- Block-aware address extraction: postcode/city and street are taken from the
+  same text block, preventing cross-entity mixing on multi-address pages.
+- Optional `html` feature: `extract_all_html` and `html_to_impressum_text`
+  parse raw HTML (via `html5gum`) into structured data. Default build unchanged.
 
 ### Fixed
 - `extract_bic` and `truncate_at_sentence_end` no longer panic on multi-byte

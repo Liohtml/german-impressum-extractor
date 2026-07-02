@@ -107,13 +107,21 @@ german-impressum-extractor = { version = "0.1", features = ["serde"] }
 
 The `Extracted` and `Person` types then derive `Serialize` + `Deserialize`.
 
-## Pipeline pattern
+### From HTML directly (optional `html` feature)
 
-This crate is for the **extraction** step only. Bring your own HTTP client / HTML cleaner. A typical pipeline:
-
-```text
-HTML page  →  visible text (e.g. via `scraper` or `html2text`)  →  extract_all()  →  Extracted struct
+```toml
+[dependencies]
+german-impressum-extractor = { version = "0.1", features = ["html"] }
 ```
+
+```rust
+use german_impressum_extractor::{extract_all_html, html_to_impressum_text};
+
+let data = extract_all_html(html_page);            // parse + extract in one step
+let text = html_to_impressum_text(html_page);      // just the cleaned text
+```
+
+Without the feature, keep feeding plain text to `extract_all` — the default build pulls no HTML dependencies.
 
 ## Examples
 
