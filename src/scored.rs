@@ -18,6 +18,7 @@ pub struct Scored<T> {
 /// with a confidence. Returned by [`crate::extract_all_scored`].
 #[derive(Debug, Clone, Default, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct ScoredExtracted {
     /// Scored email addresses.
     pub emails: Vec<Scored<String>>,
@@ -49,6 +50,16 @@ pub struct ScoredExtracted {
     pub year_founded: Option<Scored<i32>>,
     /// Scored persons.
     pub persons: Vec<Scored<Person>>,
+    /// Scored Handelsregister section (HRA/HRB).
+    pub register_type: Option<Scored<String>>,
+    /// Scored supervisory authority ("Aufsichtsbehörde").
+    pub supervisory_authority: Option<Scored<String>>,
+    /// Scored professional chamber ("zuständige Kammer" / "Berufskammer").
+    pub professional_chamber: Option<Scored<String>>,
+    /// Scored De-Mail address.
+    pub de_mail: Option<Scored<String>>,
+    /// Scored EU Online-Dispute-Resolution (OS-Plattform) URL.
+    pub dispute_resolution_url: Option<Scored<String>>,
 }
 
 #[cfg(test)]

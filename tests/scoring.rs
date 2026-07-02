@@ -77,6 +77,24 @@ fn scored_extracted_serde_roundtrips() {
     assert_eq!(s, back);
 }
 
+#[cfg(feature = "serde")]
+#[test]
+fn scored_tp5_fields_serde_roundtrip() {
+    let text = "\
+Muster GmbH
+Handelsregister HRB 12345
+Aufsichtsbehörde: Landesamt für Gesundheit
+Zuständige Kammer: IHK Berlin
+De-Mail: kontakt@firma.de-mail.de
+Online-Streitbeilegung: https://ec.europa.eu/consumers/odr/";
+    let s = extract_all_scored(text);
+    // Sanity: the new fields are actually populated in this fixture.
+    assert!(s.register_type.is_some() && s.dispute_resolution_url.is_some());
+    let json = serde_json::to_string(&s).unwrap();
+    let back: german_impressum_extractor::ScoredExtracted = serde_json::from_str(&json).unwrap();
+    assert_eq!(s, back);
+}
+
 #[cfg(feature = "html")]
 #[test]
 fn html_scored_matches_text_scored_fields() {
@@ -86,4 +104,48 @@ fn html_scored_matches_text_scored_fields() {
     );
     assert_eq!(s.legal_form.unwrap().value, "GmbH");
     assert_eq!(s.vat_id.unwrap().value, "DE123456789");
+}
+
+#[test]
+fn scored_covers_tp5_fields() {
+    let text = "\
+Muster GmbH
+Handelsregister HRB 12345
+Aufsichtsbehörde: Landesamt für Gesundheit
+Zuständige Kammer: IHK Berlin
+De-Mail: kontakt@firma.de-mail.de
+Online-Streitbeilegung: https://ec.europa.eu/consumers/odr/";
+    let d = extract_all(text);
+    let s = extract_all_scored(text);
+
+    // Values match the unscored extraction.
+    assert_eq!(
+        s.register_type.as_ref().map(|x| x.value.clone()),
+        d.register_type
+    );
+    assert_eq!(
+        s.supervisory_authority.as_ref().map(|x| x.value.clone()),
+        d.supervisory_authority
+    );
+    assert_eq!(
+        s.professional_chamber.as_ref().map(|x| x.value.clone()),
+        d.professional_chamber
+    );
+    assert_eq!(s.de_mail.as_ref().map(|x| x.value.clone()), d.de_mail);
+    assert_eq!(
+        s.dispute_resolution_url.as_ref().map(|x| x.value.clone()),
+        d.dispute_resolution_url
+    );
+
+    // All present and in range; the canonical ODR URL scores highest.
+    for c in [
+        s.register_type.as_ref().unwrap().confidence,
+        s.supervisory_authority.as_ref().unwrap().confidence,
+        s.professional_chamber.as_ref().unwrap().confidence,
+        s.de_mail.as_ref().unwrap().confidence,
+        s.dispute_resolution_url.as_ref().unwrap().confidence,
+    ] {
+        assert!((0.0..=1.0).contains(&c), "confidence out of range: {c}");
+    }
+    assert!(s.dispute_resolution_url.unwrap().confidence >= 0.95);
 }

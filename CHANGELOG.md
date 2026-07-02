@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `professional_chamber` (zuständige Kammer / Berufskammer), `de_mail`,
   `dispute_resolution_url` (EU OS-Plattform / ODR link), and `register_type`
   (HRA/HRB). Added to `Extracted` and as standalone `extract_*` functions.
+- `extract_all_scored` / `ScoredExtracted` now cover the five newer fields
+  (register_type, supervisory_authority, professional_chamber, de_mail,
+  dispute_resolution_url). `ScoredExtracted` is now `#[non_exhaustive]`.
 - `extract_tax_number` — public Steuernummer extractor, matching the rest of the
   granular API (#31).
 - `extract_hr_court` — public Handelsregister-court extractor (#26).
@@ -78,8 +81,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README: replaced the unpublished crates.io install snippet with a git
   dependency and swapped the broken crates.io/docs.rs badges for a CI badge (#8).
 - `Extracted` is now `#[non_exhaustive]` (construct it via `..Default::default()`
-  or obtain it from `extract_all`). `ScoredExtracted` does not yet cover the five
-  new fields.
+  or obtain it from `extract_all`).
 
 ## [0.1.0] - 2026-05-02
 
