@@ -15,14 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   per-field heuristic confidence (`0.0..=1.0`) driven by format validators
   (IBAN mod-97, postcode range, phone/VAT/BIC structure) plus a document-label
   boost. Additive; `extract_all` is unchanged.
-- `extract_all_scored` / `ScoredExtracted` now cover the five newer fields
-  (register_type, supervisory_authority, professional_chamber, de_mail,
-  dispute_resolution_url). `ScoredExtracted` is now `#[non_exhaustive]`.
 - Input normalization (Unicode NFC, invisible-char cleanup, HTML entity decoding) currently applies to `extract_all`, `extract_all_html`, and `extract_address`; the standalone per-field extractors (`extract_fax`, `extract_phones`, `extract_emails`, etc.) operate on raw input and will be normalization-hardened in a later change.
 - New fields + extractors: `supervisory_authority` (Aufsichtsbehörde),
   `professional_chamber` (zuständige Kammer / Berufskammer), `de_mail`,
   `dispute_resolution_url` (EU OS-Plattform / ODR link), and `register_type`
   (HRA/HRB). Added to `Extracted` and as standalone `extract_*` functions.
+- `extract_all_scored` / `ScoredExtracted` now cover the five newer fields
+  (register_type, supervisory_authority, professional_chamber, de_mail,
+  dispute_resolution_url). `ScoredExtracted` is now `#[non_exhaustive]`.
 - `extract_tax_number` — public Steuernummer extractor, matching the rest of the
   granular API (#31).
 - `extract_hr_court` — public Handelsregister-court extractor (#26).
