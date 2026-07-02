@@ -6,6 +6,8 @@
 </p>
 
 <p align="center">
+  <a href="https://crates.io/crates/german-impressum-extractor"><img alt="crates.io" src="https://img.shields.io/crates/v/german-impressum-extractor.svg?logo=rust"></a>
+  <a href="https://docs.rs/german-impressum-extractor"><img alt="docs.rs" src="https://img.shields.io/docsrs/german-impressum-extractor?logo=docs.rs"></a>
   <a href="https://github.com/Liohtml/german-impressum-extractor/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Liohtml/german-impressum-extractor/actions/workflows/ci.yml/badge.svg"></a>
   <a href="Cargo.toml"><img alt="MSRV 1.85" src="https://img.shields.io/badge/MSRV-1.85-b7410e.svg?logo=rust"></a>
   <a href="#license"><img alt="License: MIT OR Apache-2.0" src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg"></a>
@@ -51,14 +53,10 @@ This crate ships 40+ unit and regression tests covering these cases, runs `clipp
 
 ## Usage
 
-> **Note:** this crate is not yet published on crates.io. Add it as a git dependency:
-
 ```toml
 [dependencies]
-german-impressum-extractor = { git = "https://github.com/Liohtml/german-impressum-extractor" }
+german-impressum-extractor = "0.1"
 ```
-
-Once published, this will become `german-impressum-extractor = "0.1"`.
 
 ### One-shot extract
 
