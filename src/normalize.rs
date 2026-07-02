@@ -37,7 +37,13 @@ pub(crate) fn normalize_text(input: &str) -> String {
     }
     let joined = lines.join("\n");
     // 6. Collapse blank-line runs to a single blank line.
-    BLANK_LINES_RE.replace_all(&joined, "\n\n").into_owned()
+    let collapsed = BLANK_LINES_RE.replace_all(&joined, "\n\n").into_owned();
+    // 7. Trim leading/trailing blank lines and whitespace so callers (e.g. the
+    // HTML flattener, which opens with a block-start `\n`) get a canonical
+    // string with no stray edge newlines.
+    collapsed
+        .trim_matches(|c: char| c == '\n' || c == ' ' || c == '\t')
+        .to_string()
 }
 
 /// Collapse consecutive spaces (and consecutive tabs) to one, and trim leading

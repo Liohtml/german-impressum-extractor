@@ -81,6 +81,9 @@ use unicode_normalization::UnicodeNormalization;
 
 mod normalize;
 
+#[cfg(feature = "html")]
+mod html;
+
 // `Segment.label`/`span`/`value_span` and some `LabelKind` variants (e.g.
 // `LegalName`) are not read by TP1's address demonstrator — they are the
 // scoring substrate that TP2 consumes. Interim allow keeps the
@@ -433,6 +436,22 @@ pub fn extract_all(text: &str) -> Extracted {
     let doc = segment::Document::parse(normalize::normalize_text(text));
     build_extracted(&doc)
 }
+
+/// Extract every supported field from an HTML Impressum page.
+///
+/// Available with the `html` feature. Equivalent to running [`extract_all`] on
+/// [`html_to_impressum_text`].
+#[cfg(feature = "html")]
+pub fn extract_all_html(html: &str) -> Extracted {
+    let doc = segment::Document::parse(html::html_to_impressum_text(html));
+    build_extracted(&doc)
+}
+
+/// Flatten an HTML document to the crate's canonical Impressum text.
+///
+/// Available with the `html` feature.
+#[cfg(feature = "html")]
+pub use html::html_to_impressum_text;
 
 fn build_extracted(doc: &segment::Document) -> Extracted {
     let text = doc.text();

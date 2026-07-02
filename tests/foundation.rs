@@ -31,3 +31,19 @@ fn extract_all_still_works_end_to_end() {
     assert_eq!(d.postcode.as_deref(), Some("10115"));
     assert_eq!(d.vat_id.as_deref(), Some("DE123456789"));
 }
+
+#[cfg(feature = "html")]
+#[test]
+fn html_extraction_matches_text_equivalent() {
+    use german_impressum_extractor::extract_all_html;
+    let html = "\
+<h1>Muster GmbH</h1>
+<p>Hauptstra&szlig;e 12, 10115 Berlin</p>
+<dl><dt>USt-IdNr.</dt><dd>DE123456789</dd></dl>";
+    let d = extract_all_html(html);
+    assert_eq!(d.legal_form.as_deref(), Some("GmbH"));
+    assert_eq!(d.postcode.as_deref(), Some("10115"));
+    assert_eq!(d.city.as_deref(), Some("Berlin"));
+    assert_eq!(d.street.as_deref(), Some("Hauptstraße 12"));
+    assert_eq!(d.vat_id.as_deref(), Some("DE123456789"));
+}
