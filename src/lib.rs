@@ -326,6 +326,18 @@ static LEGAL_FORM_RE: LazyLock<Regex> = LazyLock::new(|| {
     .unwrap()
 });
 
+static SUPERVISORY_AUTHORITY_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)Aufsichtsbeh(?:ö|oe)rde\s*[:\-]?\s*([^\n]{2,100})").unwrap());
+
+static CHAMBER_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)(?:zust(?:ä|ae)ndige\s+Kammer|Berufskammer)\s*[:\-]?\s*([^\n]{2,100})")
+        .unwrap()
+});
+
+static DE_MAIL_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)De-?Mail\s*[:\-]?\s*([a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,})").unwrap()
+});
+
 // ───────────────────────── Blocklists ─────────────────────────
 
 /// Allowlist of real top-level domains an email address may end in.
@@ -898,6 +910,44 @@ fn extract_persons_core(text: &str) -> Vec<Person> {
         }
     }
     out
+}
+
+/// Extract the supervisory authority ("Aufsichtsbehörde"), when labeled.
+pub fn extract_supervisory_authority(text: &str) -> Option<String> {
+    extract_supervisory_authority_core(&normalize::normalize_text(text))
+}
+
+fn extract_supervisory_authority_core(text: &str) -> Option<String> {
+    SUPERVISORY_AUTHORITY_RE
+        .captures(text)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str().trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+/// Extract the responsible professional chamber ("zuständige Kammer" / "Berufskammer"), when labeled.
+pub fn extract_professional_chamber(text: &str) -> Option<String> {
+    extract_professional_chamber_core(&normalize::normalize_text(text))
+}
+
+fn extract_professional_chamber_core(text: &str) -> Option<String> {
+    CHAMBER_RE
+        .captures(text)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str().trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+/// Extract a De-Mail address, when labeled "De-Mail:".
+pub fn extract_de_mail(text: &str) -> Option<String> {
+    extract_de_mail_core(&normalize::normalize_text(text))
+}
+
+fn extract_de_mail_core(text: &str) -> Option<String> {
+    DE_MAIL_RE
+        .captures(text)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str().to_ascii_lowercase())
 }
 
 // ───────────────────────── Helpers ─────────────────────────
