@@ -57,7 +57,10 @@ mod tests {
 
     #[test]
     fn scored_holds_value_and_confidence() {
-        let s = Scored { value: "info@a.de".to_string(), confidence: 0.85 };
+        let s = Scored {
+            value: "info@a.de".to_string(),
+            confidence: 0.85,
+        };
         assert_eq!(s.value, "info@a.de");
         assert!((s.confidence - 0.85).abs() < f32::EPSILON);
         let d = ScoredExtracted::default();
