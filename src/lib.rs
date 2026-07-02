@@ -80,6 +80,7 @@ use std::sync::LazyLock;
 use unicode_normalization::UnicodeNormalization;
 
 mod normalize;
+mod scored;
 
 #[cfg(feature = "html")]
 mod html;
@@ -148,6 +149,8 @@ pub struct Person {
     /// Detected role: "Geschäftsführer" | "Inhaber" | "Vorstand" | "Verantwortlich" | None.
     pub role: Option<String>,
 }
+
+pub use scored::{Scored, ScoredExtracted};
 
 // ───────────────────────── Regexes ─────────────────────────
 
