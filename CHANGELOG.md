@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   per-field heuristic confidence (`0.0..=1.0`) driven by format validators
   (IBAN mod-97, postcode range, phone/VAT/BIC structure) plus a document-label
   boost. Additive; `extract_all` is unchanged.
+- `extract_all_scored` / `ScoredExtracted` now cover the five newer fields
+  (register_type, supervisory_authority, professional_chamber, de_mail,
+  dispute_resolution_url). `ScoredExtracted` is now `#[non_exhaustive]`.
 - Input normalization (Unicode NFC, invisible-char cleanup, HTML entity decoding) currently applies to `extract_all`, `extract_all_html`, and `extract_address`; the standalone per-field extractors (`extract_fax`, `extract_phones`, `extract_emails`, etc.) operate on raw input and will be normalization-hardened in a later change.
 - New fields + extractors: `supervisory_authority` (Aufsichtsbehörde),
   `professional_chamber` (zuständige Kammer / Berufskammer), `de_mail`,
@@ -78,8 +81,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README: replaced the unpublished crates.io install snippet with a git
   dependency and swapped the broken crates.io/docs.rs badges for a CI badge (#8).
 - `Extracted` is now `#[non_exhaustive]` (construct it via `..Default::default()`
-  or obtain it from `extract_all`). `ScoredExtracted` does not yet cover the five
-  new fields.
+  or obtain it from `extract_all`).
 
 ## [0.1.0] - 2026-05-02
 
