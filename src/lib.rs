@@ -677,6 +677,13 @@ pub fn extract_address(text: &str) -> (Option<String>, Option<String>, Option<St
 /// intended for pages listing multiple locations/branches. Address components
 /// are only ever combined within a single block, so parts from different
 /// entities are never mixed.
+///
+/// Address parts are grouped strictly per text block (blocks are separated by
+/// blank lines). A single address whose street and "postcode city" lines are
+/// split by a blank line therefore yields two partial [`Address`] values here,
+/// while [`extract_address`] merges them into one; and two addresses within one
+/// block collapse to a single [`Address`]. For the common single-block layout,
+/// `extract_addresses(t)[0]` matches the components of [`extract_address`].
 pub fn extract_addresses(text: &str) -> Vec<Address> {
     let doc = segment::Document::parse(normalize::normalize_text(text));
     addresses_from_document(&doc)
