@@ -1,5 +1,20 @@
 use german_impressum_extractor::{extract_all, extract_emails, extract_fax, extract_persons};
 
+#[test]
+fn extract_all_decodes_entities_exactly_once() {
+    // "&amp;amp;#64;" is the literal text "&amp;#64;" and must decode ONCE to
+    // "&#64;", never to "@". extract_all must not double-decode via build_extracted.
+    let raw = "Kontakt info&amp;amp;#64;beispiel.de";
+    let d = extract_all(raw);
+    assert!(
+        d.emails.is_empty(),
+        "extract_all double-decoded to an email: {:?}",
+        d.emails
+    );
+    // extract_all must agree with the standalone extractor on this input.
+    assert_eq!(d.emails, extract_emails(raw));
+}
+
 // Messy input: NBSP (U+00A0), CRLF, a soft hyphen, and a well-formed entity.
 const MESSY: &str = "Firma\u{00AD} GmbH\r\nTelefon:\u{00A0}+49 30 1234567\r\nFax: +49 30 1234568\r\nE-Mail: info&#64;beispiel.de";
 
