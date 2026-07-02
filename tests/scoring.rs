@@ -65,7 +65,7 @@ fn label_presence_boosts_phone_confidence() {
     let unlabeled = extract_all_scored("+49 30 1234567");
     let lc = labeled.phones.first().unwrap().confidence;
     let uc = unlabeled.phones.first().unwrap().confidence;
-    assert!(lc >= uc, "labeled {lc} should be >= unlabeled {uc}");
+    assert!(lc > uc, "labeled {lc} should be > unlabeled {uc}");
 }
 
 #[cfg(feature = "serde")]

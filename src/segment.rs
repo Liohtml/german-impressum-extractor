@@ -177,6 +177,8 @@ fn classify_label(label: &str) -> LabelKind {
         LabelKind::Founded
     } else if has("web") || has("internet") || has("homepage") {
         LabelKind::Web
+    } else if has("rechtsform") {
+        LabelKind::LegalName
     } else {
         LabelKind::Other
     }
@@ -222,5 +224,11 @@ mod tests {
         let doc = Document::parse("Telefon: 030 123\nMuster GmbH".to_string());
         assert!(doc.has_label(LabelKind::Phone));
         assert!(!doc.has_label(LabelKind::Bank));
+    }
+
+    #[test]
+    fn classifies_rechtsform_as_legal_name() {
+        let doc = Document::parse("Rechtsform: GmbH".to_string());
+        assert!(doc.has_label(LabelKind::LegalName));
     }
 }
