@@ -98,6 +98,8 @@ let bic         = extract_bic(text);
 let founded     = extract_year_founded(text);
 ```
 
+All granular `extract_*` functions normalize their input the same way `extract_all` does (Unicode/whitespace cleanup, HTML-entity decoding), so calling them directly gives the same result as the corresponding field of `extract_all`.
+
 ### Confidence scores
 
 Need to know how much to trust each field? `extract_all_scored` returns the

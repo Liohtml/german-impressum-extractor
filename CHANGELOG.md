@@ -35,6 +35,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   parse raw HTML (via `html5gum`) into structured data. Default build unchanged.
 
 ### Fixed
+- Standalone `extract_*` functions now normalize their input (Unicode, whitespace,
+  HTML entities) like `extract_all`, so direct calls no longer diverge from the
+  corresponding `extract_all` field on messy input.
+- `extract_persons` rejects tokens containing digits and an expanded set of
+  non-name noise nouns (team, kontakt, webdesign, …), reducing false persons.
 - `extract_bic` and `truncate_at_sentence_end` no longer panic on multi-byte
   UTF-8 input (zero-width spaces, soft hyphens); byte offsets are snapped to a
   char boundary via an MSRV-safe `floor_char_boundary` helper (#13, #14, #25).
