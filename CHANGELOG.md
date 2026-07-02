@@ -5,9 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.0] - 2026-07-02
+
+First release published to crates.io. Contains the full feature set below,
+including the core one-shot/granular extraction API and everything added since.
 
 ### Added
+- `extract_all` — one-shot extraction of every supported field — and per-field
+  extractors (`extract_emails`, `extract_phones`, `extract_address`,
+  `extract_persons`, `extract_legal_form`, `extract_hr_number`, `extract_vat_id`,
+  `extract_year_founded`), plus an optional `serde` feature.
 - `extract_addresses` + `Address`: return every postal address on the page
   (one per block, document order, deduped) for multi-location Impressum pages.
   `extract_address` (first address) and `extract_all` are unchanged.
@@ -79,19 +86,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dropped the `once_cell` dependency in favor of `std::sync::LazyLock`
   (available at the 1.85 MSRV) (#27).
 - Pinned all GitHub Actions in CI to commit SHAs (#16).
-- `Cargo.toml` `documentation` now points at the repository README instead of a
-  not-yet-live docs.rs URL (#28).
-- README: replaced the unpublished crates.io install snippet with a git
-  dependency and swapped the broken crates.io/docs.rs badges for a CI badge (#8).
+- `Cargo.toml` `documentation` points at docs.rs; the excluded internal design
+  docs / CI config keep the published package lean (#8, #28).
 - `Extracted` is now `#[non_exhaustive]` (construct it via `..Default::default()`
   or obtain it from `extract_all`).
-
-## [0.1.0] - 2026-05-02
-
-### Added
-- Initial release.
-- `extract_all` — one-shot extraction of every supported field.
-- Per-field extractors: `extract_emails`, `extract_phones`, `extract_address`,
-  `extract_persons`, `extract_legal_form`, `extract_hr_number`, `extract_vat_id`,
-  `extract_year_founded`.
-- Optional `serde` feature.
