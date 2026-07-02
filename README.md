@@ -14,183 +14,205 @@
   <a href="https://github.com/rust-secure-code/safety-dance/"><img alt="unsafe forbidden" src="https://img.shields.io/badge/unsafe-forbidden-success.svg"></a>
 </p>
 
-# german-impressum-extractor
+<p align="center"><b>Turn a German website's <a href="https://www.gesetze-im-internet.de/tmg/__5.html">Impressum</a> — messy text or raw HTML — into a clean, typed struct.</b></p>
 
-Extract structured data from German B2B website Impressum text — pure Rust, no async runtime needed.
+<p align="center">
+  📥 text <i>or</i> HTML in &nbsp;·&nbsp; 🎯 20+ typed fields out &nbsp;·&nbsp; 📊 confidence scores &nbsp;·&nbsp; 🦀 pure Rust, no async
+</p>
 
-Germany's [TMG §5](https://www.gesetze-im-internet.de/tmg/__5.html) requires every commercial website to publish an "Impressum" listing the legal entity, managing directors, address, contact info, and tax identifiers. This crate gives you a battle-tested parser for that data.
+<p align="center">
+  <a href="#-quick-start">Quick start</a> ·
+  <a href="#-what-it-extracts">Fields</a> ·
+  <a href="#-from-html">HTML</a> ·
+  <a href="#-confidence-scores">Confidence</a> ·
+  <a href="#-multiple-addresses">Multi-address</a> ·
+  <a href="#feature-flags">Features</a> ·
+  <a href="#-robustness--limits">Limits</a>
+</p>
 
-## What it extracts
+---
 
-- 📧 **Email addresses** — plain (`info@firma.de`) and obfuscated (`info [at] firma [dot] de`). False positives from code fragments (`…@….css`) and prose (`…matters. Discover…` → `th@matters.discover`) are filtered via a real-TLD allowlist.
-- ☎️ **Phone numbers** — normalized to `+49…` form regardless of input format.
-- 📠 **Fax / Telefax** — labeled fax numbers, kept separate from `phones`.
-- 🏠 **Address** — German postcode + city + street with house number.
-- 🪪 **HR-Nummer** — Handelsregister number (e.g. `HRB 12345 B`).
-- 🏛️ **HR court** — registration court (e.g. `Amtsgericht Berlin (Charlottenburg)`).
-- 💶 **USt-IdNr.** — German VAT ID (`DE` + 9 digits, also with grouping spaces `DE 123 456 789`).
-- 🧾 **Steuernummer** — local tax number, incl. abbreviations (`St.-Nr.`, `StNr.`, `Steuer-Nr.`).
-- 🏦 **IBAN / BIC** — German bank details (`Bankverbindung`).
-- 🏢 **Legal form** — `GmbH`, `GmbH & Co. KG`, `GmbH & Co. KGaA`, `KGaA`, `UG`, `AG`, `KG`, `OHG`, `GbR`, `e.K.`, `eG`, `SE`.
-- 📅 **Year founded** — `gegründet 1973` / `seit 1985` / `founded in 1990`.
-- 👥 **Persons** — Geschäftsführer / Inhaber / Vorstand / Verantwortlicher (§18 MStV) with role tag.
-- 🏛️ **Supervisory authority** — Aufsichtsbehörde responsible for the entity.
-- 🏤 **Professional chamber** — zuständige Kammer / Berufskammer (industry/profession registration).
-- 📮 **De-Mail** — De-Mail address, German secure email alternative.
-- 🔗 **EU Dispute Resolution / ODR link** — dispute resolution platform URL (Streitbeilegungsplattform).
-- 📋 **Handelsregister type** — register type designation (HRA for Einzelunternehmen, HRB for Gesellschaften).
+Every German commercial website must publish an **Impressum** (TMG §5) — the legal entity, managing directors, address, contact details, and tax identifiers. That data is gold for B2B research, lead enrichment, and compliance tooling, but it arrives as free-form prose. This crate parses it into a struct so you don't have to babysit a pile of regexes.
 
-## Why not just regex it yourself
+### ✨ Highlights
 
-Because German B2B websites have hundreds of edge cases:
+- **📥 Text *or* HTML** — feed plain text, or enable the `html` feature and pass a raw page; entities, tags, `<dt>/<dd>` label pairs and tables are handled.
+- **🎯 20+ fields, one call** — `extract_all` returns contacts, address, legal form, register, VAT/tax, bank details, people (with roles), and EU-compliance fields.
+- **📊 Confidence scores** — `extract_all_scored` annotates each field `0.0..=1.0` using real validators (IBAN **mod-97**, postcode range, VAT/BIC shape) plus a label boost.
+- **🏢 Multi-location aware** — `extract_addresses` returns *every* address, never mixing components across blocks.
+- **🧹 Noise-resistant** — Unicode/whitespace/entity normalization, TLD allowlist for emails, char-boundary-safe (no panics on `ä`/emoji/zero-width chars).
+- **🦀 Lean & safe** — synchronous, `#![forbid(unsafe_code)]`, **MSRV 1.85**, and a default build with no HTTP/HTML/async dependencies. 100+ tests, `clippy -D warnings` in CI.
 
-- Phone: `+49 (0) 30 / 1234 5-67` vs `0030 12 345-678` vs `030 / 12345/678`
-- Names: `Dr. h.c. Hans-Peter von der Mühle und Anna Schmidt-Lutz` should yield two distinct people.
-- Postcodes vs random 5-digit numbers: `12345` is not always a postcode.
-- Legal forms with `&`: `GmbH & Co. KG` vs `GmbH & Co. KGaA` vs just `GmbH`.
-
-This crate ships 40+ unit and regression tests covering these cases, runs `clippy -D warnings` in CI, verifies its 1.85 MSRV, and is used in production lead-gen pipelines.
-
-## Usage
+## 🚀 Quick start
 
 ```toml
 [dependencies]
 german-impressum-extractor = "0.1"
 ```
 
-### One-shot extract
-
 ```rust
 use german_impressum_extractor::extract_all;
 
-let text = std::fs::read_to_string("impressum.txt").unwrap();
-let data = extract_all(&text);
+let impressum = "
+    Musterreinigung GmbH & Co. KG
+    Geschäftsführer: Dr. Hans Müller
+    Hauptstraße 12, 10115 Berlin
+    Tel: +49 30 1234567
+    E-Mail: info@musterreinigung.de
+    Amtsgericht Berlin HRB 12345 B
+    USt-IdNr.: DE 123 456 789
+    IBAN: DE89 3704 0044 0532 0130 00
+    Gegründet 1985
+";
 
-println!("Legal form: {:?}", data.legal_form);
-println!("Email:      {:?}", data.emails);
-println!("Phones:     {:?}", data.phones);
-println!("Persons:    {:?}", data.persons);
+let data = extract_all(impressum);
+
+assert_eq!(data.legal_form.as_deref(),    Some("GmbH & Co. KG"));
+assert_eq!(data.postcode.as_deref(),      Some("10115"));
+assert_eq!(data.vat_id.as_deref(),        Some("DE123456789"));
+assert_eq!(data.iban.as_deref(),          Some("DE89370400440532013000"));
+assert_eq!(data.register_type.as_deref(), Some("HRB"));
+assert_eq!(data.year_founded,             Some(1985));
+assert_eq!(data.emails,                   vec!["info@musterreinigung.de"]);
+assert!(data.persons.iter().any(|p| p.last_name.as_deref() == Some("Müller")));
 ```
 
-### Granular extractors
+Got a raw HTML page instead of clean text? Enable the [`html`](#-from-html) feature and call `extract_all_html` — same result, one step.
 
-Each field has a separate function if you only need part of the picture:
+## 📋 What it extracts
 
-```rust
-use german_impressum_extractor::{
-    extract_emails, extract_phones, extract_fax, extract_persons,
-    extract_address, extract_legal_form, extract_vat_id, extract_tax_number,
-    extract_hr_number, extract_hr_court, extract_iban, extract_bic,
-    extract_year_founded, extract_supervisory_authority, extract_professional_chamber,
-    extract_de_mail, extract_dispute_resolution_url, extract_register_type,
-};
+`extract_all` returns an [`Extracted`](https://docs.rs/german-impressum-extractor/latest/german_impressum_extractor/struct.Extracted.html) struct with these fields:
 
-let text = "Geschäftsführer: Hans Müller, Tel: +49 30 1234567";
+| Group | Fields |
+|-------|--------|
+| 📇 **Contact** | `emails` (plain **and** obfuscated `info [at] firma [dot] de`), `phones` (normalized to `+49…`), `fax`, `de_mail` |
+| 🏠 **Address** | `postcode`, `city`, `street` — first match, or [`extract_addresses`](#-multiple-addresses) for all |
+| 🏢 **Legal & register** | `legal_form` (`GmbH`, `GmbH & Co. KG`, `GmbH & Co. KGaA`, `KGaA`, `UG`, `AG`, `KG`, `OHG`, `GbR`, `e.K.`, `eG`, `SE`), `hr_number` (`HRB 12345 B`), `hr_court`, `register_type` (`HRA`/`HRB`), `year_founded` |
+| 💶 **Tax & banking** | `vat_id` (USt-IdNr., incl. grouped `DE 123 456 789`), `tax_number` (Steuernummer, incl. `St.-Nr.`/`StNr.`), `iban`, `bic` |
+| 👥 **People** | `persons` — Geschäftsführer / Inhaber / Vorstand / Verantwortlicher (§18 MStV), each with a role tag and best-effort first/last name |
+| 🛡️ **Compliance** | `supervisory_authority` (Aufsichtsbehörde), `professional_chamber` (zuständige Kammer / Berufskammer), `dispute_resolution_url` (EU ODR / OS-Plattform) |
 
-let emails  = extract_emails(text);
-let phones  = extract_phones(text);
-let fax     = extract_fax(text);
-let persons = extract_persons(text);
-let (postcode, city, street) = extract_address(text);
-let legal_form  = extract_legal_form(text);
-let vat_id      = extract_vat_id(text);
-let tax_number  = extract_tax_number(text);
-let hr_number   = extract_hr_number(text);
-let hr_court    = extract_hr_court(text);
-let iban        = extract_iban(text);
-let bic         = extract_bic(text);
-let founded     = extract_year_founded(text);
-let supervisory_auth = extract_supervisory_authority(text);
-let prof_chamber     = extract_professional_chamber(text);
-let de_mail          = extract_de_mail(text);
-let odr_url          = extract_dispute_resolution_url(text);
-let reg_type         = extract_register_type(text);
-```
+## 🌐 From HTML
 
-All granular `extract_*` functions normalize their input the same way `extract_all` does (Unicode/whitespace cleanup, HTML-entity decoding), so calling them directly gives the same result as the corresponding field of `extract_all`.
-
-### Multiple addresses
-
-`extract_address` returns the first address; for pages listing several
-locations use `extract_addresses`, which returns one `Address` per address
-block (components are never mixed across blocks):
-
-```rust
-use german_impressum_extractor::extract_addresses;
-
-for a in extract_addresses(impressum_text) {
-    println!("{:?} {:?} {:?}", a.street, a.postcode, a.city);
-}
-```
-
-### Confidence scores
-
-Need to know how much to trust each field? `extract_all_scored` returns the
-same data with a per-field confidence in `0.0..=1.0` (heuristic: format
-validity such as an IBAN mod-97 check, plus a boost when the source page
-labels the field):
-
-```rust
-use german_impressum_extractor::extract_all_scored;
-
-let d = extract_all_scored(impressum_text);
-if let Some(iban) = d.iban {
-    println!("{} (confidence {:.2})", iban.value, iban.confidence);
-}
-```
-
-`extract_all` is unchanged; scoring is purely additive. With the `html`
-feature, `extract_all_scored_html` does the same from raw HTML.
-
-### `serde` support (optional)
+<a id="-from-html"></a>
 
 ```toml
-[dependencies]
-german-impressum-extractor = { version = "0.1", features = ["serde"] }
-```
-
-The `Extracted` and `Person` types then derive `Serialize` + `Deserialize`.
-
-### From HTML directly (optional `html` feature)
-
-```toml
-[dependencies]
 german-impressum-extractor = { version = "0.1", features = ["html"] }
 ```
 
 ```rust
 use german_impressum_extractor::{extract_all_html, html_to_impressum_text};
 
-let data = extract_all_html(html_page);            // parse + extract in one step
-let text = html_to_impressum_text(html_page);      // just the cleaned text
+let data = extract_all_html(html_page);        // parse + extract in one step
+let text = html_to_impressum_text(html_page);  // just the cleaned, structured text
 ```
 
-Without the feature, keep feeding plain text to `extract_all` — the default build pulls no HTML dependencies.
+The flattener (powered by [`html5gum`](https://crates.io/crates/html5gum)) drops `<script>`/`<style>`, turns block elements and `<br>` into line breaks, and maps `<dt>/<dd>` pairs and table cells into `label → value` lines — so definition-list and table Impressums parse correctly. Without the feature, the default build pulls **no** HTML dependency.
 
-## Examples
+## 📊 Confidence scores
 
-```bash
-cargo run --example basic
+Need to know how much to trust each field? `extract_all_scored` returns the same data, each value wrapped in a `Scored { value, confidence }` where `confidence` is a heuristic in `0.0..=1.0` — driven by format validators (a real IBAN **mod-97** check, postcode range, VAT/BIC shape) plus a boost when the page explicitly labels the field.
+
+```rust
+use german_impressum_extractor::extract_all_scored;
+
+let scored = extract_all_scored(impressum_text);
+
+if let Some(iban) = scored.iban {
+    println!("{} — confidence {:.2}", iban.value, iban.confidence); // e.g. 0.95
+}
 ```
 
-## Robustness & limits
+`extract_all` stays untouched; scoring is purely additive. With the `html` feature, `extract_all_scored_html` does the same from raw HTML.
 
-- ✅ Handles `ä`, `ö`, `ü`, `ß`, double-letter substitutions (`ae`, `oe`, `ue`, `ss`).
-- ✅ Tested on dozens of real German cleaning-industry Impressum pages in production.
-- ⚠️ Extraction is regex-based; some unusual layouts may produce noise. The `persons` field in particular benefits from a downstream cleanup step that filters obvious non-names (e.g. you may want to drop `last_name == "Geschäftsführung"`).
-- ⚠️ Address regex finds the *first* postcode/street in the text. If the page contains multiple legal entities or branch addresses, use `extract_addresses` to get all addresses; `extract_address` returns only the first.
+## 🏢 Multiple addresses
 
-## Contributing
+`extract_address` returns the first address. For pages listing several locations, `extract_addresses` returns one `Address` per address block — components are **never** mixed across blocks:
 
-Issues and PRs welcome. Please:
+```rust
+use german_impressum_extractor::extract_addresses;
 
-1. `cargo test` passes
-2. New regex patterns ship with at least one test case derived from real-world text
-3. Run `cargo fmt` + `cargo clippy --all-targets`
+for a in extract_addresses(impressum_text) {
+    println!("{:?}, {:?} {:?}", a.street, a.postcode, a.city);
+}
+```
+
+## 🔧 Granular extractors
+
+Only need one field? Every field has a standalone `extract_*` function (all normalize their input exactly like `extract_all`, so results match):
+
+<details>
+<summary><b>Show all granular functions</b></summary>
+
+```rust
+use german_impressum_extractor::{
+    // contact
+    extract_emails, extract_phones, extract_fax, extract_de_mail,
+    // address (single + all)
+    extract_address, extract_addresses,
+    // legal & register
+    extract_legal_form, extract_hr_number, extract_hr_court, extract_register_type,
+    extract_year_founded,
+    // tax & banking
+    extract_vat_id, extract_tax_number, extract_iban, extract_bic,
+    // people
+    extract_persons,
+    // compliance
+    extract_supervisory_authority, extract_professional_chamber,
+    extract_dispute_resolution_url,
+};
+
+let text = "Geschäftsführer: Hans Müller, Tel: +49 30 1234567";
+let phones  = extract_phones(text);          // ["+493012345 67".replace(' ', "")]
+let persons = extract_persons(text);         // [Person { last_name: "Müller", role: "Geschäftsführer", .. }]
+let (postcode, city, street) = extract_address(text);
+```
+
+</details>
+
+## Feature flags
+
+| Feature | Adds | Extra dependencies |
+|---------|------|--------------------|
+| *(default)* | text extraction, all fields, confidence scores | `regex`, `unicode-normalization` |
+| `html` | `extract_all_html`, `extract_all_scored_html`, `html_to_impressum_text` | `html5gum` |
+| `serde` | `Serialize` + `Deserialize` on `Extracted`, `Person`, `Address`, `Scored<T>`, `ScoredExtracted` | `serde` |
+
+```toml
+german-impressum-extractor = { version = "0.1", features = ["html", "serde"] }
+```
+
+## 🧠 Why not just roll your own regex?
+
+Because real German B2B pages have hundreds of edge cases:
+
+- **Phones:** `+49 (0) 30 / 1234 5-67` vs `0049 30 12345-678` vs `030 / 12345/678` — all one number.
+- **Names:** `Dr. h.c. Hans-Peter von der Mühle und Anna Schmidt-Lutz` → two distinct people, titles stripped, "von der" handled.
+- **Postcodes** vs random 5-digit numbers; a street and its "PLZ Stadt" line that belong together vs. two different branch addresses.
+- **Legal forms with `&`:** `GmbH & Co. KG` vs `GmbH & Co. KGaA` vs plain `GmbH`.
+- **Unicode gremlins:** zero-width spaces, soft hyphens, non-breaking spaces, HTML entities, `ae/oe/ue/ss` — normalized away before matching, on char boundaries (no panics).
+
+This crate ships an extensive unit + regression + integration suite (**100+ tests**, green on stable **and** the 1.85 MSRV), enforces `clippy -D warnings` in CI, and is built for production B2B research pipelines.
+
+## ✅ Robustness & limits
+
+- ✅ Handles `ä ö ü ß`, `ae/oe/ue/ss` substitutions, obfuscated emails, and label/definition-list/table HTML layouts.
+- ✅ Infallible and panic-free — every extractor returns `Option`/`Vec`, never panics, even on adversarial multi-byte input.
+- ⚠️ Extraction is heuristic/regex-based; unusual layouts can still produce noise. Use `extract_all_scored` to rank field trust, and treat low-confidence `persons`/`professional_chamber` results as best-effort.
+- ⚠️ `extract_address` returns only the first address — use `extract_addresses` for multi-location pages.
+- ⚠️ This crate does the **extraction** step only. Bring your own HTTP client / HTML fetcher; pass the page (or its text) here.
+
+## 🤝 Contributing
+
+Issues and PRs welcome. Please make sure:
+
+1. `cargo test --all-features` passes,
+2. new patterns ship with at least one test derived from real-world text,
+3. `cargo fmt` and `cargo clippy --all-targets --all-features -- -D warnings` are clean.
 
 ## License
 
-Licensed under either of:
+Licensed under either of
 
 - Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 - MIT License ([LICENSE-MIT](LICENSE-MIT))
