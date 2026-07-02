@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `extract_addresses` + `Address`: return every postal address on the page
+  (one per block, document order, deduped) for multi-location Impressum pages.
+  `extract_address` (first address) and `extract_all` are unchanged.
 - `extract_all_scored` / `extract_all_scored_html` + `Scored<T>` / `ScoredExtracted`:
   per-field heuristic confidence (`0.0..=1.0`) driven by format validators
   (IBAN mod-97, postcode range, phone/VAT/BIC structure) plus a document-label
