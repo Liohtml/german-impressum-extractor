@@ -80,6 +80,7 @@ use std::sync::LazyLock;
 use unicode_normalization::UnicodeNormalization;
 
 mod normalize;
+mod segment;
 
 /// Container for everything `extract_all` returns.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
