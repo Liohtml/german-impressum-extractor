@@ -47,3 +47,33 @@ fn html_extraction_matches_text_equivalent() {
     assert_eq!(d.street.as_deref(), Some("Hauptstraße 12"));
     assert_eq!(d.vat_id.as_deref(), Some("DE123456789"));
 }
+
+#[cfg(feature = "html")]
+#[test]
+fn html_multi_field_dl_does_not_fuse_records() {
+    use german_impressum_extractor::extract_all_html;
+    let d = extract_all_html(
+        "<dl><dt>Geschäftsführer</dt><dd>Hans Müller</dd><dt>Handelsregister</dt><dd>HRB 12345</dd></dl>",
+    );
+    assert!(
+        d.persons
+            .iter()
+            .any(|p| p.last_name.as_deref() == Some("Müller")),
+        "got {:?}",
+        d.persons
+    );
+    assert!(
+        !d.persons
+            .iter()
+            .any(|p| p.last_name.as_deref() == Some("HRB")),
+        "record fusion regressed: {:?}",
+        d.persons
+    );
+    assert!(
+        d.hr_number
+            .as_deref()
+            .is_some_and(|s| s.contains("HRB 12345")),
+        "hr_number: {:?}",
+        d.hr_number
+    );
+}

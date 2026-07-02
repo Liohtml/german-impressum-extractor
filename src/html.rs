@@ -83,7 +83,7 @@ impl HtmlFlattener for DefaultFlattener {
                         || name_is(&tag.name, b"td")
                     {
                         out.push('\t');
-                    } else if is_block(&tag.name) {
+                    } else if name_is(&tag.name, b"dd") || is_block(&tag.name) {
                         out.push('\n');
                     }
                 }
@@ -145,5 +145,13 @@ mod tests {
     #[test]
     fn broken_markup_does_not_panic() {
         let _ = flat("<div><span>unclosed <b> &notanentity <<< ");
+    }
+
+    #[test]
+    fn multi_entry_dl_separates_records() {
+        assert_eq!(
+            flat("<dl><dt>Telefon</dt><dd>030 123</dd><dt>Fax</dt><dd>030 456</dd></dl>"),
+            "Telefon\t030 123\nFax\t030 456"
+        );
     }
 }
