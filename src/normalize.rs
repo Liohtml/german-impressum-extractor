@@ -81,6 +81,13 @@ fn collapse_line_ws(line: &str) -> String {
 
 /// Decode only well-formed HTML entities: named (from a small table), decimal
 /// `&#NNN;`, and hex `&#xHH;`. Anything not recognized is emitted verbatim.
+///
+/// This is a SINGLE decoding pass: each well-formed entity is decoded exactly
+/// once, per HTML semantics. Doubly-escaped input like `&amp;#64;` therefore
+/// decodes only to `&#64;` (the literal escaped ampersand followed by
+/// `#64;`), not all the way to `@`. Iterating to a fixed point would be
+/// incorrect and could over-decode legitimate text (e.g. `&amp;copy;` must
+/// stay `&copy;`, not become `©`).
 fn decode_entities(s: &str) -> String {
     if !s.contains('&') {
         return s.to_string();
@@ -183,6 +190,19 @@ mod tests {
         );
         // Malformed / no semicolon: left untouched.
         assert_eq!(normalize_text("R&D Abteilung"), "R&D Abteilung");
+    }
+
+    #[test]
+    fn decodes_entities_exactly_once() {
+        // A doubly-escaped ampersand must decode to the literal escaped
+        // text `&#64;`, NOT be over-decoded to `@`.
+        assert_eq!(decode_entities("&amp;#64;"), "&#64;");
+        assert_eq!(decode_entities("&amp;"), "&");
+        assert_eq!(decode_entities("&#64;"), "@");
+        assert_eq!(
+            decode_entities("M&uuml;ller &amp; S&ouml;hne"),
+            "Müller & Söhne"
+        );
     }
 
     #[test]

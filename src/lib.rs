@@ -428,6 +428,25 @@ const NOT_A_NAME: &[&str] = &[
     "gbr",
     "kg",
     "eg",
+    // Impressum footer / contact noise nouns that leak in as fake names.
+    "team",
+    "kontakt",
+    "impressum",
+    "datenschutz",
+    "vertrieb",
+    "büro",
+    "sekretariat",
+    "webdesign",
+    "webseite",
+    "homepage",
+    "copyright",
+    "firma",
+    "unternehmen",
+    "postfach",
+    "telefon",
+    "telefax",
+    "mobil",
+    "adresse",
 ];
 
 // ───────────────────────── Public API ─────────────────────────
@@ -476,7 +495,7 @@ pub fn extract_all_scored_html(html: &str) -> ScoredExtracted {
 fn build_extracted(doc: &segment::Document) -> Extracted {
     let text = doc.text();
     // Fax (labeled) is extracted first so it can be excluded from phones.
-    let fax = extract_fax(text);
+    let fax = extract_fax_core(text);
     // IBANs contain long digit runs that the phone regex would otherwise pick
     // up as bogus numbers, so skip any phone match overlapping an IBAN.
     let iban_spans: Vec<(usize, usize)> = IBAN_DE_RE
@@ -490,12 +509,12 @@ fn build_extracted(doc: &segment::Document) -> Extracted {
 
     let (postcode, city, street) = address_from_document(doc);
 
-    let hr_number = extract_hr_number(text);
-    let hr_court = extract_hr_court(text);
-    let tax_number = extract_tax_number(text);
+    let hr_number = extract_hr_number_core(text);
+    let hr_court = extract_hr_court_core(text);
+    let tax_number = extract_tax_number_core(text);
 
     Extracted {
-        emails: extract_emails(text),
+        emails: extract_emails_core(text),
         phones,
         fax,
         postcode,
@@ -503,13 +522,13 @@ fn build_extracted(doc: &segment::Document) -> Extracted {
         street,
         hr_number,
         hr_court,
-        vat_id: extract_vat_id(text),
+        vat_id: extract_vat_id_core(text),
         tax_number,
-        iban: extract_iban(text),
-        bic: extract_bic(text),
-        legal_form: extract_legal_form(text),
-        year_founded: extract_year_founded(text),
-        persons: extract_persons(text),
+        iban: extract_iban_core(text),
+        bic: extract_bic_core(text),
+        legal_form: extract_legal_form_core(text),
+        year_founded: extract_year_founded_core(text),
+        persons: extract_persons_core(text),
     }
 }
 
@@ -517,6 +536,10 @@ fn build_extracted(doc: &segment::Document) -> Extracted {
 /// lowercased and deduplicated. Code-fragment false positives (invalid TLDs
 /// like `.css`/`.js`, known junk domains) are filtered out.
 pub fn extract_emails(text: &str) -> Vec<String> {
+    extract_emails_core(&normalize::normalize_text(text))
+}
+
+fn extract_emails_core(text: &str) -> Vec<String> {
     let mut emails: BTreeSet<String> = BTreeSet::new();
     for m in EMAIL_RE.find_iter(text) {
         let e = m.as_str().to_ascii_lowercase();
@@ -542,7 +565,8 @@ pub fn extract_emails(text: &str) -> Vec<String> {
 /// [`extract_all`] additionally removes the detected [`Extracted::fax`] from
 /// its `phones` list; use [`extract_fax`] to obtain it separately.
 pub fn extract_phones(text: &str) -> Vec<String> {
-    collect_phones(text, &[])
+    let normalized = normalize::normalize_text(text);
+    collect_phones(normalized.as_str(), &[])
 }
 
 /// Collect normalized phone numbers, skipping matches that overlap any of the
@@ -566,6 +590,10 @@ fn collect_phones(text: &str, skip_spans: &[(usize, usize)]) -> Vec<String> {
 
 /// Extract a labeled Fax / Telefax number, normalized to `+49…`.
 pub fn extract_fax(text: &str) -> Option<String> {
+    extract_fax_core(&normalize::normalize_text(text))
+}
+
+fn extract_fax_core(text: &str) -> Option<String> {
     let cap = FAX_RE.captures(text)?;
     let p = clean_phone(cap.get(1)?.as_str());
     if p.len() >= 7 { Some(p) } else { None }
@@ -573,6 +601,10 @@ pub fn extract_fax(text: &str) -> Option<String> {
 
 /// Extract a German IBAN, normalized without spaces (e.g. `DE89370400440532013000`).
 pub fn extract_iban(text: &str) -> Option<String> {
+    extract_iban_core(&normalize::normalize_text(text))
+}
+
+fn extract_iban_core(text: &str) -> Option<String> {
     let m = IBAN_DE_RE.find(text)?;
     let normalized: String = m
         .as_str()
@@ -592,6 +624,10 @@ pub fn extract_iban(text: &str) -> Option<String> {
 /// banking context (`BIC`, `SWIFT`, or `Bankverbindung` nearby) to avoid
 /// matching ordinary uppercase words.
 pub fn extract_bic(text: &str) -> Option<String> {
+    extract_bic_core(&normalize::normalize_text(text))
+}
+
+fn extract_bic_core(text: &str) -> Option<String> {
     for m in BIC_RE.find_iter(text) {
         let candidate = m.as_str().to_ascii_uppercase();
         // The country part (chars 5-6) must be letters; require a banking
@@ -671,6 +707,10 @@ fn address_from_document(
 
 /// Detect the German legal form mentioned in the text (e.g. "GmbH", "GmbH & Co. KG", "AG").
 pub fn extract_legal_form(text: &str) -> Option<String> {
+    extract_legal_form_core(&normalize::normalize_text(text))
+}
+
+fn extract_legal_form_core(text: &str) -> Option<String> {
     LEGAL_FORM_RE
         .find(text)
         .map(|m| canonicalize_legal_form(m.as_str()))
@@ -678,6 +718,10 @@ pub fn extract_legal_form(text: &str) -> Option<String> {
 
 /// Extract the HR (Handelsregister) number (e.g. `HRB 12345 B`).
 pub fn extract_hr_number(text: &str) -> Option<String> {
+    extract_hr_number_core(&normalize::normalize_text(text))
+}
+
+fn extract_hr_number_core(text: &str) -> Option<String> {
     HR_NUMBER_RE.captures(text).map(|c| {
         c.get(0)
             .unwrap()
@@ -695,6 +739,10 @@ pub fn extract_hr_number(text: &str) -> Option<String> {
 /// (`Amtsgericht Berlin HRB 12345`) is stripped, so this returns `"Berlin"`
 /// rather than `"Berlin HRB"`. See issue #26.
 pub fn extract_hr_court(text: &str) -> Option<String> {
+    extract_hr_court_core(&normalize::normalize_text(text))
+}
+
+fn extract_hr_court_core(text: &str) -> Option<String> {
     HR_COURT_RE
         .captures(text)
         .and_then(|c| c.get(1))
@@ -707,6 +755,10 @@ pub fn extract_hr_court(text: &str) -> Option<String> {
 /// Recognizes the full word `Steuernummer` as well as the common abbreviations
 /// `Steuer-Nr.`, `St.-Nr.`, `StNr.` and `St.Nr.`. See issues #31 and #32.
 pub fn extract_tax_number(text: &str) -> Option<String> {
+    extract_tax_number_core(&normalize::normalize_text(text))
+}
+
+fn extract_tax_number_core(text: &str) -> Option<String> {
     TAX_NUMBER_RE
         .captures(text)
         .and_then(|c| c.get(1).map(|m| m.as_str().trim().to_string()))
@@ -718,6 +770,10 @@ pub fn extract_tax_number(text: &str) -> Option<String> {
 /// Any candidate that overlaps a detected IBAN is skipped, since an IBAN also
 /// starts with `DE` followed by digits.
 pub fn extract_vat_id(text: &str) -> Option<String> {
+    extract_vat_id_core(&normalize::normalize_text(text))
+}
+
+fn extract_vat_id_core(text: &str) -> Option<String> {
     let iban_spans: Vec<(usize, usize)> = IBAN_DE_RE
         .find_iter(text)
         .map(|m| (m.start(), m.end()))
@@ -741,6 +797,10 @@ pub fn extract_vat_id(text: &str) -> Option<String> {
 
 /// Extract the company's founding year.
 pub fn extract_year_founded(text: &str) -> Option<i32> {
+    extract_year_founded_core(&normalize::normalize_text(text))
+}
+
+fn extract_year_founded_core(text: &str) -> Option<i32> {
     let cap = YEAR_FOUNDED_RE.captures(text)?;
     let y: i32 = cap.get(1)?.as_str().parse().ok()?;
     if (1700..=2100).contains(&y) {
@@ -752,6 +812,10 @@ pub fn extract_year_founded(text: &str) -> Option<i32> {
 
 /// Extract Geschäftsführer / Inhaber / Vorstand / Verantwortlicher persons.
 pub fn extract_persons(text: &str) -> Vec<Person> {
+    extract_persons_core(&normalize::normalize_text(text))
+}
+
+fn extract_persons_core(text: &str) -> Vec<Person> {
     let mut out = Vec::new();
     let mut seen: BTreeSet<String> = BTreeSet::new();
     for cap in GF_REGEX.captures_iter(text) {
@@ -958,6 +1022,9 @@ fn detect_role(full_match: &str) -> Option<String> {
 fn is_valid_name_part(s: &str) -> bool {
     let trimmed = s.trim().trim_matches(|c: char| !c.is_alphanumeric());
     if trimmed.chars().count() <= 1 {
+        return false;
+    }
+    if trimmed.chars().any(|c| c.is_ascii_digit()) {
         return false;
     }
     if NOT_A_NAME.contains(&trimmed.to_lowercase().as_str()) {
