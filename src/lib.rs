@@ -79,7 +79,13 @@ use regex::Regex;
 use std::sync::LazyLock;
 use unicode_normalization::UnicodeNormalization;
 
+// TP1 substrate: consumed as later tasks wire it in (normalize in Task 4;
+// segment/label internals through Task 4 and TP2). Interim allow keeps the
+// `-D warnings` clippy gate green until then.
+#[allow(dead_code)]
 mod normalize;
+
+#[allow(dead_code)]
 mod segment;
 
 /// Container for everything `extract_all` returns.
