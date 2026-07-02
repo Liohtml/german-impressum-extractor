@@ -1,7 +1,7 @@
 //! HTML → canonical structured text, behind the `html` feature. Uses the
 //! `html5gum` tokenizer (which also decodes character references). Block-level
 //! elements and `<br>` become `\n`; `<dt>`/`<dd>` and table cells become
-//! `label\tvalue`; `<script>`/`<style>`/`<head>`/`<noscript>` content is dropped.
+//! `label\tvalue`; `<script>`/`<style>`/`<head>`/`<noscript>`/`<template>` content is dropped.
 
 use html5gum::{HtmlString, Token, Tokenizer};
 

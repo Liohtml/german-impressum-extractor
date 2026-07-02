@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Input normalization (Unicode NFC, invisible-char cleanup, HTML entity decoding) currently applies to `extract_all`, `extract_all_html`, and `extract_address`; the standalone per-field extractors (`extract_fax`, `extract_phones`, `extract_emails`, etc.) operate on raw input and will be normalization-hardened in a later change.
 - `extract_tax_number` — public Steuernummer extractor, matching the rest of the
   granular API (#31).
 - `extract_hr_court` — public Handelsregister-court extractor (#26).

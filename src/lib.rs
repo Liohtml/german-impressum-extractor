@@ -635,7 +635,8 @@ fn address_from_document(
             pc_cands.push(Candidate::new(pcv, 0..0, idx, Some(LabelKind::Postal)));
         }
         if let Some(sv) = st {
-            street_cands.push(Candidate::new(sv, 0..0, idx, Some(LabelKind::Postal)));
+            // TODO(TP2): real span + label when scoring consumes these
+            street_cands.push(Candidate::new(sv, 0..0, idx, None));
         }
     }
 
