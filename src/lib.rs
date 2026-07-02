@@ -716,26 +716,10 @@ fn parse_postcode_city(block: &str) -> Option<(String, String)> {
 
 fn parse_street(block: &str) -> Option<String> {
     let cap = STREET_RE.captures(block)?;
-    let street_part = cap.get(1).map(|m| m.as_str().trim()).unwrap_or("");
-    let house_part = cap.get(2).map(|m| m.as_str().trim()).unwrap_or("");
-
-    // Strip common leading words that may precede the actual street name
-    // (e.g., "Nur Musterweg" → "Musterweg").
-    let mut words: Vec<&str> = street_part.split_whitespace().collect();
-    let stop_words = ["nur"];
-    while !words.is_empty() && stop_words.contains(&words[0].to_lowercase().as_str()) {
-        words.remove(0);
-    }
-    let cleaned = words.join(" ");
-
     Some(format!(
         "{} {}",
-        if cleaned.is_empty() {
-            street_part
-        } else {
-            &cleaned
-        },
-        house_part
+        cap.get(1).map(|m| m.as_str().trim()).unwrap_or(""),
+        cap.get(2).map(|m| m.as_str().trim()).unwrap_or("")
     ))
 }
 

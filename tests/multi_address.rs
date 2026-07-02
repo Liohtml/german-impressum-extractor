@@ -44,7 +44,7 @@ fn single_address_matches_extract_address() {
 #[test]
 fn partial_block_yields_partial_address() {
     // Only a street, no postcode/city.
-    let addrs = extract_addresses("Nur Musterweg 5");
+    let addrs = extract_addresses("Musterweg 5");
     assert_eq!(
         addrs,
         vec![Address {
