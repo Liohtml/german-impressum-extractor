@@ -56,6 +56,11 @@ impl Document {
         self.blocks.iter().map(move |b| &self.text[b.span.clone()])
     }
 
+    /// True if any segment carries the given label.
+    pub(crate) fn has_label(&self, kind: LabelKind) -> bool {
+        self.segments.iter().any(|s| s.label == Some(kind))
+    }
+
     #[cfg(test)]
     fn first_segment(&self) -> &Segment {
         &self.segments[0]
@@ -172,6 +177,8 @@ fn classify_label(label: &str) -> LabelKind {
         LabelKind::Founded
     } else if has("web") || has("internet") || has("homepage") {
         LabelKind::Web
+    } else if has("rechtsform") {
+        LabelKind::LegalName
     } else {
         LabelKind::Other
     }
@@ -210,5 +217,18 @@ mod tests {
         let seg = doc.first_segment();
         assert_eq!(seg.label, None);
         assert_eq!(&doc.text()[seg.value_span.clone()], "Musterreinigung GmbH");
+    }
+
+    #[test]
+    fn has_label_detects_present_labels() {
+        let doc = Document::parse("Telefon: 030 123\nMuster GmbH".to_string());
+        assert!(doc.has_label(LabelKind::Phone));
+        assert!(!doc.has_label(LabelKind::Bank));
+    }
+
+    #[test]
+    fn classifies_rechtsform_as_legal_name() {
+        let doc = Document::parse("Rechtsform: GmbH".to_string());
+        assert!(doc.has_label(LabelKind::LegalName));
     }
 }

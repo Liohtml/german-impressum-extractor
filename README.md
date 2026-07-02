@@ -98,6 +98,25 @@ let bic         = extract_bic(text);
 let founded     = extract_year_founded(text);
 ```
 
+### Confidence scores
+
+Need to know how much to trust each field? `extract_all_scored` returns the
+same data with a per-field confidence in `0.0..=1.0` (heuristic: format
+validity such as an IBAN mod-97 check, plus a boost when the source page
+labels the field):
+
+```rust
+use german_impressum_extractor::extract_all_scored;
+
+let d = extract_all_scored(impressum_text);
+if let Some(iban) = d.iban {
+    println!("{} (confidence {:.2})", iban.value, iban.confidence);
+}
+```
+
+`extract_all` is unchanged; scoring is purely additive. With the `html`
+feature, `extract_all_scored_html` does the same from raw HTML.
+
 ### `serde` support (optional)
 
 ```toml

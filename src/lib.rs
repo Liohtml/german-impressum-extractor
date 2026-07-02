@@ -80,6 +80,8 @@ use std::sync::LazyLock;
 use unicode_normalization::UnicodeNormalization;
 
 mod normalize;
+mod score;
+mod scored;
 
 #[cfg(feature = "html")]
 mod html;
@@ -148,6 +150,8 @@ pub struct Person {
     /// Detected role: "Geschäftsführer" | "Inhaber" | "Vorstand" | "Verantwortlich" | None.
     pub role: Option<String>,
 }
+
+pub use scored::{Scored, ScoredExtracted};
 
 // ───────────────────────── Regexes ─────────────────────────
 
@@ -452,6 +456,22 @@ pub fn extract_all_html(html: &str) -> Extracted {
 /// Available with the `html` feature.
 #[cfg(feature = "html")]
 pub use html::html_to_impressum_text;
+
+/// Extract every supported field with a heuristic confidence score per field.
+///
+/// Additive companion to [`extract_all`]: same extraction, each field wrapped
+/// in a [`Scored`] with a confidence in `0.0..=1.0`.
+pub fn extract_all_scored(text: &str) -> ScoredExtracted {
+    let doc = segment::Document::parse(normalize::normalize_text(text));
+    score::score_extracted(build_extracted(&doc), &doc)
+}
+
+/// Like [`extract_all_scored`], but from an HTML page. Available with the `html` feature.
+#[cfg(feature = "html")]
+pub fn extract_all_scored_html(html: &str) -> ScoredExtracted {
+    let doc = segment::Document::parse(html::html_to_impressum_text(html));
+    score::score_extracted(build_extracted(&doc), &doc)
+}
 
 fn build_extracted(doc: &segment::Document) -> Extracted {
     let text = doc.text();
