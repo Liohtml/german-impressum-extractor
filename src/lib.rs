@@ -79,17 +79,18 @@ use regex::Regex;
 use std::sync::LazyLock;
 use unicode_normalization::UnicodeNormalization;
 
-// TP1 substrate: consumed as later tasks wire it in (normalize in Task 4;
-// segment/label internals through Task 4 and TP2). Interim allow keeps the
-// `-D warnings` clippy gate green until then.
-#[allow(dead_code)]
 mod normalize;
 
+// `Segment.label`/`span`/`value_span` and some `LabelKind` variants (e.g.
+// `LegalName`) are not read by TP1's address demonstrator — they are the
+// scoring substrate that TP2 consumes. Interim allow keeps the
+// `-D warnings` clippy gate green until then.
 #[allow(dead_code)]
 mod segment;
 
-// TP1 substrate: consumed by Task 4 (address demonstrator). Interim allow
-// keeps the -D warnings clippy gate green until then.
+// `Candidate.span`/`block`/`label` are not read by TP1 (only `.value` is);
+// they are the provenance substrate that TP2's confidence scoring consumes.
+// Interim allow keeps the -D warnings clippy gate green until then.
 #[allow(dead_code)]
 mod candidate;
 
@@ -429,6 +430,12 @@ const NOT_A_NAME: &[&str] = &[
 /// `text` should be the visible text of an Impressum page (or the whole
 /// site — the extractors are forgiving).
 pub fn extract_all(text: &str) -> Extracted {
+    let doc = segment::Document::parse(normalize::normalize_text(text));
+    build_extracted(&doc)
+}
+
+fn build_extracted(doc: &segment::Document) -> Extracted {
+    let text = doc.text();
     // Fax (labeled) is extracted first so it can be excluded from phones.
     let fax = extract_fax(text);
     // IBANs contain long digit runs that the phone regex would otherwise pick
@@ -442,7 +449,7 @@ pub fn extract_all(text: &str) -> Extracted {
         .filter(|p| fax.as_deref() != Some(p.as_str()))
         .collect();
 
-    let (postcode, city, street) = extract_address(text);
+    let (postcode, city, street) = address_from_document(doc);
 
     let hr_number = extract_hr_number(text);
     let hr_court = extract_hr_court(text);
@@ -564,21 +571,61 @@ pub fn extract_bic(text: &str) -> Option<String> {
 }
 
 /// Extract the first German address (`(postcode, city, street)`) from text.
+///
+/// Postcode/city and street are drawn from the *same* block when possible, so
+/// pages listing multiple addresses do not mix parts across entities.
 pub fn extract_address(text: &str) -> (Option<String>, Option<String>, Option<String>) {
-    let mut postcode = None;
-    let mut city = None;
-    let mut street = None;
-    if let Some(cap) = GERMAN_POSTCODE_AND_CITY_RE.captures(text) {
-        postcode = cap.get(1).map(|m| m.as_str().to_string());
-        city = cap.get(2).map(|m| m.as_str().trim().to_string());
+    let doc = segment::Document::parse(normalize::normalize_text(text));
+    address_from_document(&doc)
+}
+
+fn parse_postcode_city(block: &str) -> Option<(String, String)> {
+    let cap = GERMAN_POSTCODE_AND_CITY_RE.captures(block)?;
+    Some((
+        cap.get(1)?.as_str().to_string(),
+        cap.get(2)?.as_str().trim().to_string(),
+    ))
+}
+
+fn parse_street(block: &str) -> Option<String> {
+    let cap = STREET_RE.captures(block)?;
+    Some(format!(
+        "{} {}",
+        cap.get(1).map(|m| m.as_str().trim()).unwrap_or(""),
+        cap.get(2).map(|m| m.as_str().trim()).unwrap_or("")
+    ))
+}
+
+fn address_from_document(
+    doc: &segment::Document,
+) -> (Option<String>, Option<String>, Option<String>) {
+    use candidate::Candidate;
+    use segment::LabelKind;
+
+    let mut pc_cands: Vec<Candidate<(String, String)>> = Vec::new();
+    let mut street_cands: Vec<Candidate<String>> = Vec::new();
+
+    for (idx, block) in doc.block_texts().enumerate() {
+        let pc = parse_postcode_city(block);
+        let st = parse_street(block);
+        // Same-block hit: strongest signal, return immediately.
+        if let (Some((code, city)), Some(street)) = (&pc, &st) {
+            return (Some(code.clone()), Some(city.clone()), Some(street.clone()));
+        }
+        if let Some(pcv) = pc {
+            pc_cands.push(Candidate::new(pcv, 0..0, idx, Some(LabelKind::Postal)));
+        }
+        if let Some(sv) = st {
+            street_cands.push(Candidate::new(sv, 0..0, idx, Some(LabelKind::Postal)));
+        }
     }
-    if let Some(cap) = STREET_RE.captures(text) {
-        street = Some(format!(
-            "{} {}",
-            cap.get(1).map(|m| m.as_str().trim()).unwrap_or(""),
-            cap.get(2).map(|m| m.as_str().trim()).unwrap_or("")
-        ));
-    }
+
+    // Fallback: first postcode/city and first street seen anywhere.
+    let (postcode, city) = match pc_cands.into_iter().next() {
+        Some(c) => (Some(c.value.0), Some(c.value.1)),
+        None => (None, None),
+    };
+    let street = street_cands.into_iter().next().map(|c| c.value);
     (postcode, city, street)
 }
 

@@ -28,9 +28,8 @@ pub(crate) enum LabelKind {
 }
 
 // Matches a leading "Label: value" shape. Group 1 = label, group 2 = value.
-static LABEL_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?s)^\s*([\p{L}.\-/ ]{1,30}?)\s*:\s*(.*)$").unwrap()
-});
+static LABEL_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?s)^\s*([\p{L}.\-/ ]{1,30}?)\s*:\s*(.*)$").unwrap());
 
 pub(crate) struct Segment {
     pub(crate) span: Range<usize>,
@@ -80,7 +79,9 @@ impl Document {
             if content.trim().is_empty() {
                 // Blank line closes the current block.
                 if let Some(bs) = block_start.take() {
-                    blocks.push(Block { span: bs..block_end });
+                    blocks.push(Block {
+                        span: bs..block_end,
+                    });
                 }
                 continue;
             }
@@ -91,10 +92,16 @@ impl Document {
             segments.push(build_segment(&text, start..end));
         }
         if let Some(bs) = block_start.take() {
-            blocks.push(Block { span: bs..block_end });
+            blocks.push(Block {
+                span: bs..block_end,
+            });
         }
 
-        Document { text, blocks, segments }
+        Document {
+            text,
+            blocks,
+            segments,
+        }
     }
 }
 
@@ -141,8 +148,12 @@ fn classify_label(label: &str) -> LabelKind {
         LabelKind::Phone
     } else if has("mail") {
         LabelKind::Email
-    } else if has("geschäftsführ") || has("geschaeftsführ") || has("inhaber")
-        || has("vorstand") || has("vertretungsberechtigt") || has("verantwortlich")
+    } else if has("geschäftsführ")
+        || has("geschaeftsführ")
+        || has("inhaber")
+        || has("vorstand")
+        || has("vertretungsberechtigt")
+        || has("verantwortlich")
     {
         LabelKind::Managers
     } else if has("ust") || has("umsatzsteuer") || has("vat") {

@@ -14,8 +14,18 @@ pub(crate) struct Candidate<T> {
 }
 
 impl<T> Candidate<T> {
-    pub(crate) fn new(value: T, span: Range<usize>, block: usize, label: Option<LabelKind>) -> Self {
-        Candidate { value, span, block, label }
+    pub(crate) fn new(
+        value: T,
+        span: Range<usize>,
+        block: usize,
+        label: Option<LabelKind>,
+    ) -> Self {
+        Candidate {
+            value,
+            span,
+            block,
+            label,
+        }
     }
 }
 

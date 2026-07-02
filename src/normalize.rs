@@ -167,20 +167,34 @@ mod tests {
 
     #[test]
     fn decodes_well_formed_entities_only() {
-        assert_eq!(normalize_text("M\u{00FC}ller &amp; S\u{00F6}hne"), "Müller & Söhne");
-        assert_eq!(normalize_text("&uuml;ber &#252;ber &#xFC;ber"), "über über über");
+        assert_eq!(
+            normalize_text("M\u{00FC}ller &amp; S\u{00F6}hne"),
+            "Müller & Söhne"
+        );
+        assert_eq!(
+            normalize_text("&uuml;ber &#252;ber &#xFC;ber"),
+            "über über über"
+        );
         // Malformed / no semicolon: left untouched.
         assert_eq!(normalize_text("R&D Abteilung"), "R&D Abteilung");
     }
 
     #[test]
     fn preserves_tabs_and_collapses_blank_lines() {
-        assert_eq!(normalize_text("Telefon\t030\n\n\n\nSitz"), "Telefon\t030\n\nSitz");
+        assert_eq!(
+            normalize_text("Telefon\t030\n\n\n\nSitz"),
+            "Telefon\t030\n\nSitz"
+        );
     }
 
     #[test]
     fn never_panics_on_multibyte_garbage() {
-        for s in ["\u{200B}\u{00AD}", "€\t\r\n", "ä".repeat(50).as_str(), "&#;&#x;&amp"] {
+        for s in [
+            "\u{200B}\u{00AD}",
+            "€\t\r\n",
+            "ä".repeat(50).as_str(),
+            "&#;&#x;&amp",
+        ] {
             let _ = normalize_text(s);
         }
     }
