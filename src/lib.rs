@@ -151,6 +151,21 @@ pub struct Person {
     pub role: Option<String>,
 }
 
+/// A single postal address (one per address-bearing text block).
+///
+/// Each field is independent: a block containing only a street yields an
+/// `Address` with `street: Some(..)` and the rest `None`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Address {
+    /// German postcode (5 digits), if present in the block.
+    pub postcode: Option<String>,
+    /// City following the postcode, if present.
+    pub city: Option<String>,
+    /// Street + house number, if present in the block.
+    pub street: Option<String>,
+}
+
 pub use scored::{Scored, ScoredExtracted};
 
 // ───────────────────────── Regexes ─────────────────────────
@@ -654,6 +669,43 @@ pub fn extract_address(text: &str) -> (Option<String>, Option<String>, Option<St
     address_from_document(&doc)
 }
 
+/// Extract every postal address on the page — one [`Address`] per text block
+/// that contains a postcode/city and/or a street, in document order, with exact
+/// duplicates removed.
+///
+/// Unlike [`extract_address`] (which returns only the first address), this is
+/// intended for pages listing multiple locations/branches. Address components
+/// are only ever combined within a single block, so parts from different
+/// entities are never mixed.
+pub fn extract_addresses(text: &str) -> Vec<Address> {
+    let doc = segment::Document::parse(normalize::normalize_text(text));
+    addresses_from_document(&doc)
+}
+
+fn addresses_from_document(doc: &segment::Document) -> Vec<Address> {
+    let mut out: Vec<Address> = Vec::new();
+    for block in doc.block_texts() {
+        let pc = parse_postcode_city(block);
+        let street = parse_street(block);
+        if pc.is_none() && street.is_none() {
+            continue;
+        }
+        let (postcode, city) = match pc {
+            Some((code, city)) => (Some(code), Some(city)),
+            None => (None, None),
+        };
+        let addr = Address {
+            postcode,
+            city,
+            street,
+        };
+        if !out.contains(&addr) {
+            out.push(addr);
+        }
+    }
+    out
+}
+
 fn parse_postcode_city(block: &str) -> Option<(String, String)> {
     let cap = GERMAN_POSTCODE_AND_CITY_RE.captures(block)?;
     Some((
@@ -664,10 +716,26 @@ fn parse_postcode_city(block: &str) -> Option<(String, String)> {
 
 fn parse_street(block: &str) -> Option<String> {
     let cap = STREET_RE.captures(block)?;
+    let street_part = cap.get(1).map(|m| m.as_str().trim()).unwrap_or("");
+    let house_part = cap.get(2).map(|m| m.as_str().trim()).unwrap_or("");
+
+    // Strip common leading words that may precede the actual street name
+    // (e.g., "Nur Musterweg" → "Musterweg").
+    let mut words: Vec<&str> = street_part.split_whitespace().collect();
+    let stop_words = ["nur"];
+    while !words.is_empty() && stop_words.contains(&words[0].to_lowercase().as_str()) {
+        words.remove(0);
+    }
+    let cleaned = words.join(" ");
+
     Some(format!(
         "{} {}",
-        cap.get(1).map(|m| m.as_str().trim()).unwrap_or(""),
-        cap.get(2).map(|m| m.as_str().trim()).unwrap_or("")
+        if cleaned.is_empty() {
+            street_part
+        } else {
+            &cleaned
+        },
+        house_part
     ))
 }
 
