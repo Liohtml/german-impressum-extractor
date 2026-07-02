@@ -88,3 +88,26 @@ Online-Streitbeilegung: https://ec.europa.eu/consumers/odr/";
     assert_eq!(d.legal_form.as_deref(), Some("GmbH"));
     assert_eq!(d.hr_number.as_deref(), Some("HRB 12345"));
 }
+
+#[test]
+fn label_regexes_ignore_mid_sentence_prose() {
+    // "Berufskammer"/"Aufsichtsbehörde" mid-sentence (not starting a line) must
+    // not be captured as a value.
+    assert_eq!(
+        extract_professional_chamber("Wir sind Mitglied der Berufskammer der Ärzte Bayern."),
+        None
+    );
+    assert_eq!(
+        extract_supervisory_authority("Diese Seite unterliegt der Aufsichtsbehörde des Landes."),
+        None
+    );
+    // Legitimate line-start labels still work.
+    assert_eq!(
+        extract_professional_chamber("Berufskammer: Rechtsanwaltskammer Berlin"),
+        Some("Rechtsanwaltskammer Berlin".into())
+    );
+    assert_eq!(
+        extract_supervisory_authority("Aufsichtsbehörde: Landesamt X"),
+        Some("Landesamt X".into())
+    );
+}

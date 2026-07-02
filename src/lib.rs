@@ -337,11 +337,12 @@ static LEGAL_FORM_RE: LazyLock<Regex> = LazyLock::new(|| {
     .unwrap()
 });
 
-static SUPERVISORY_AUTHORITY_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)Aufsichtsbeh(?:ö|oe)rde\s*[:\-]?\s*([^\n]{2,100})").unwrap());
+static SUPERVISORY_AUTHORITY_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?im)^\s*Aufsichtsbeh(?:ö|oe)rde\s*[:\-]?\s*([^\n]{2,100})").unwrap()
+});
 
 static CHAMBER_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)(?:zust(?:ä|ae)ndige\s+Kammer|Berufskammer)\s*[:\-]?\s*([^\n]{2,100})")
+    Regex::new(r"(?im)^\s*(?:zust(?:ä|ae)ndige\s+Kammer|Berufskammer)\s*[:\-]?\s*([^\n]{2,100})")
         .unwrap()
 });
 
