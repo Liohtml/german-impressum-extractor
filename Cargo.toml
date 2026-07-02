@@ -12,6 +12,9 @@ keywords = ["impressum", "scraper", "germany", "b2b", "extraction"]
 categories = ["parser-implementations", "text-processing"]
 license = "MIT OR Apache-2.0"
 rust-version = "1.85"
+# Keep the published crate lean: the internal design docs and CI config are not
+# useful to crate consumers.
+exclude = ["docs/superpowers/**", ".github/**", ".superpowers/**"]
 
 [dependencies]
 regex = "1.10"
