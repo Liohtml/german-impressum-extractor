@@ -81,7 +81,27 @@ fn collapse_line_ws(line: &str) -> String {
 
 /// Decode only well-formed HTML entities: named (from a small table), decimal
 /// `&#NNN;`, and hex `&#xHH;`. Anything not recognized is emitted verbatim.
+///
+/// Doubly-encoded input (e.g. `&amp;#64;`, which a single pass only reduces to
+/// `&#64;`) is resolved to a fixed point so `normalize_text` is idempotent:
+/// re-normalizing an already-normalized string must not change it. The
+/// iteration count is capped so adversarial input can't loop unboundedly.
 fn decode_entities(s: &str) -> String {
+    let mut current = s.to_string();
+    for _ in 0..4 {
+        if !current.contains('&') {
+            break;
+        }
+        let next = decode_entities_once(&current);
+        if next == current {
+            break;
+        }
+        current = next;
+    }
+    current
+}
+
+fn decode_entities_once(s: &str) -> String {
     if !s.contains('&') {
         return s.to_string();
     }
@@ -183,6 +203,16 @@ mod tests {
         );
         // Malformed / no semicolon: left untouched.
         assert_eq!(normalize_text("R&D Abteilung"), "R&D Abteilung");
+    }
+
+    #[test]
+    fn decodes_doubly_encoded_entities_and_is_idempotent() {
+        // `&amp;#64;` is "@" double-encoded once (`&amp;` -> `&`, revealing a
+        // fresh `&#64;` that a single decode pass would otherwise miss).
+        let once = normalize_text("info&amp;#64;beispiel.de");
+        assert_eq!(once, "info@beispiel.de");
+        // Re-normalizing an already-normalized string must be a no-op.
+        assert_eq!(normalize_text(&once), once);
     }
 
     #[test]
