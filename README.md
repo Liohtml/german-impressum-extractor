@@ -100,6 +100,20 @@ let founded     = extract_year_founded(text);
 
 All granular `extract_*` functions normalize their input the same way `extract_all` does (Unicode/whitespace cleanup, HTML-entity decoding), so calling them directly gives the same result as the corresponding field of `extract_all`.
 
+### Multiple addresses
+
+`extract_address` returns the first address; for pages listing several
+locations use `extract_addresses`, which returns one `Address` per address
+block (components are never mixed across blocks):
+
+```rust
+use german_impressum_extractor::extract_addresses;
+
+for a in extract_addresses(impressum_text) {
+    println!("{:?} {:?} {:?}", a.street, a.postcode, a.city);
+}
+```
+
 ### Confidence scores
 
 Need to know how much to trust each field? `extract_all_scored` returns the
@@ -155,7 +169,7 @@ cargo run --example basic
 - ✅ Handles `ä`, `ö`, `ü`, `ß`, double-letter substitutions (`ae`, `oe`, `ue`, `ss`).
 - ✅ Tested on dozens of real German cleaning-industry Impressum pages in production.
 - ⚠️ Extraction is regex-based; some unusual layouts may produce noise. The `persons` field in particular benefits from a downstream cleanup step that filters obvious non-names (e.g. you may want to drop `last_name == "Geschäftsführung"`).
-- ⚠️ Address regex finds the *first* postcode/street in the text. If the page contains multiple legal entities or branch addresses, only the first is returned.
+- ⚠️ Address regex finds the *first* postcode/street in the text. If the page contains multiple legal entities or branch addresses, use `extract_addresses` to get all addresses; `extract_address` returns only the first.
 
 ## Contributing
 
