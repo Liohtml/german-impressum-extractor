@@ -428,6 +428,25 @@ const NOT_A_NAME: &[&str] = &[
     "gbr",
     "kg",
     "eg",
+    // Impressum footer / contact noise nouns that leak in as fake names.
+    "team",
+    "kontakt",
+    "impressum",
+    "datenschutz",
+    "vertrieb",
+    "büro",
+    "sekretariat",
+    "webdesign",
+    "webseite",
+    "homepage",
+    "copyright",
+    "firma",
+    "unternehmen",
+    "postfach",
+    "telefon",
+    "telefax",
+    "mobil",
+    "adresse",
 ];
 
 // ───────────────────────── Public API ─────────────────────────
@@ -981,6 +1000,9 @@ fn detect_role(full_match: &str) -> Option<String> {
 fn is_valid_name_part(s: &str) -> bool {
     let trimmed = s.trim().trim_matches(|c: char| !c.is_alphanumeric());
     if trimmed.chars().count() <= 1 {
+        return false;
+    }
+    if trimmed.chars().any(|c| c.is_ascii_digit()) {
         return false;
     }
     if NOT_A_NAME.contains(&trimmed.to_lowercase().as_str()) {

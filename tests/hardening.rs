@@ -26,3 +26,25 @@ fn persons_still_extracted_after_normalization() {
     let p = extract_persons("Gesch\u{00E4}ftsf\u{00FC}hrer: Dr. Hans M\u{00FC}ller");
     assert!(p.iter().any(|x| x.last_name.as_deref() == Some("Müller")));
 }
+
+#[test]
+fn persons_rejects_digit_tokens_and_noise_nouns() {
+    // "Webdesign" is a common footer noise word; must not become a surname.
+    let p = extract_persons("Inhaber: Webdesign Berlin");
+    assert!(
+        !p.iter().any(|x| x.last_name.as_deref() == Some("Webdesign")
+            || x.first_name.as_deref() == Some("Webdesign")),
+        "noise noun leaked as name: {p:?}"
+    );
+
+    // A token containing a digit is not a name part.
+    let p2 = extract_persons("Geschäftsführer: Hans Müller2");
+    assert!(
+        !p2.iter().any(|x| x.last_name.as_deref() == Some("Müller2")),
+        "digit-bearing token leaked as name: {p2:?}"
+    );
+
+    // Real name still works.
+    let p3 = extract_persons("Geschäftsführer: Dr. Hans Müller");
+    assert!(p3.iter().any(|x| x.last_name.as_deref() == Some("Müller")));
+}
