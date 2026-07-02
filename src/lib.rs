@@ -346,7 +346,7 @@ static CHAMBER_RE: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 static DE_MAIL_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)De-?Mail\s*[:\-]?\s*([a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,})").unwrap()
+    Regex::new(r"(?i)\bDe-?Mail\s*[:\-]?\s*([a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,})").unwrap()
 });
 
 static ODR_URL_RE: LazyLock<Regex> =

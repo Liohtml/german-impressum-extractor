@@ -33,6 +33,8 @@ fn de_mail_labeled_only() {
     );
     // A normal e-mail label must NOT be picked up as De-Mail.
     assert_eq!(extract_de_mail("E-Mail: info@firma.de"), None);
+    // "De-Mail" must not match inside a larger compound word.
+    assert_eq!(extract_de_mail("Absende-Mail: versand@firma.de"), None);
 }
 
 #[test]
