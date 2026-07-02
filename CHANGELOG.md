@@ -71,6 +71,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   keywords as person names (#4).
 - `extract_vat_id` now matches USt-IdNr. with internal grouping spaces
   (`DE 123 456 789`) and avoids mis-reading an IBAN prefix as a VAT ID (#5).
+- `supervisory_authority` / `professional_chamber` now require their label to
+  begin a line, so a mid-sentence mention (e.g. "…Mitglied der Berufskammer…")
+  is no longer captured as the value.
 
 ### Changed
 - Dropped the `once_cell` dependency in favor of `std::sync::LazyLock`
