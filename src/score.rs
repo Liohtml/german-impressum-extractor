@@ -165,6 +165,13 @@ pub(crate) fn score_extracted(base: Extracted, doc: &Document) -> ScoredExtracte
                 scored(p, c)
             })
             .collect(),
+        register_type: base
+            .register_type
+            .map(|v| scored(v, 0.85 + bonus(LabelKind::Register))),
+        supervisory_authority: base.supervisory_authority.map(|v| scored(v, 0.8)),
+        professional_chamber: base.professional_chamber.map(|v| scored(v, 0.75)),
+        de_mail: base.de_mail.map(|v| scored(v, 0.9)),
+        dispute_resolution_url: base.dispute_resolution_url.map(|v| scored(v, 0.97)),
     }
 }
 
