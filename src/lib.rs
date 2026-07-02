@@ -88,6 +88,11 @@ mod normalize;
 #[allow(dead_code)]
 mod segment;
 
+// TP1 substrate: consumed by Task 4 (address demonstrator). Interim allow
+// keeps the -D warnings clippy gate green until then.
+#[allow(dead_code)]
+mod candidate;
+
 /// Container for everything `extract_all` returns.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
