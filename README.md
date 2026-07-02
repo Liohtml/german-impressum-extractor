@@ -32,6 +32,11 @@ Germany's [TMG §5](https://www.gesetze-im-internet.de/tmg/__5.html) requires ev
 - 🏢 **Legal form** — `GmbH`, `GmbH & Co. KG`, `GmbH & Co. KGaA`, `KGaA`, `UG`, `AG`, `KG`, `OHG`, `GbR`, `e.K.`, `eG`, `SE`.
 - 📅 **Year founded** — `gegründet 1973` / `seit 1985` / `founded in 1990`.
 - 👥 **Persons** — Geschäftsführer / Inhaber / Vorstand / Verantwortlicher (§18 MStV) with role tag.
+- 🏛️ **Supervisory authority** — Aufsichtsbehörde responsible for the entity.
+- 🏤 **Professional chamber** — zuständige Kammer / Berufskammer (industry/profession registration).
+- 📮 **De-Mail** — De-Mail address, German secure email alternative.
+- 🔗 **EU Dispute Resolution / ODR link** — dispute resolution platform URL (Streitbeilegungsplattform).
+- 📋 **Handelsregister type** — register type designation (HRA for Einzelunternehmen, HRB for Gesellschaften).
 
 ## Why not just regex it yourself
 
@@ -78,7 +83,8 @@ use german_impressum_extractor::{
     extract_emails, extract_phones, extract_fax, extract_persons,
     extract_address, extract_legal_form, extract_vat_id, extract_tax_number,
     extract_hr_number, extract_hr_court, extract_iban, extract_bic,
-    extract_year_founded,
+    extract_year_founded, extract_supervisory_authority, extract_professional_chamber,
+    extract_de_mail, extract_dispute_resolution_url, extract_register_type,
 };
 
 let text = "Geschäftsführer: Hans Müller, Tel: +49 30 1234567";
@@ -96,6 +102,11 @@ let hr_court    = extract_hr_court(text);
 let iban        = extract_iban(text);
 let bic         = extract_bic(text);
 let founded     = extract_year_founded(text);
+let supervisory_auth = extract_supervisory_authority(text);
+let prof_chamber     = extract_professional_chamber(text);
+let de_mail          = extract_de_mail(text);
+let odr_url          = extract_dispute_resolution_url(text);
+let reg_type         = extract_register_type(text);
 ```
 
 All granular `extract_*` functions normalize their input the same way `extract_all` does (Unicode/whitespace cleanup, HTML-entity decoding), so calling them directly gives the same result as the corresponding field of `extract_all`.
