@@ -82,26 +82,13 @@ fn collapse_line_ws(line: &str) -> String {
 /// Decode only well-formed HTML entities: named (from a small table), decimal
 /// `&#NNN;`, and hex `&#xHH;`. Anything not recognized is emitted verbatim.
 ///
-/// Doubly-encoded input (e.g. `&amp;#64;`, which a single pass only reduces to
-/// `&#64;`) is resolved to a fixed point so `normalize_text` is idempotent:
-/// re-normalizing an already-normalized string must not change it. The
-/// iteration count is capped so adversarial input can't loop unboundedly.
+/// This is a SINGLE decoding pass: each well-formed entity is decoded exactly
+/// once, per HTML semantics. Doubly-escaped input like `&amp;#64;` therefore
+/// decodes only to `&#64;` (the literal escaped ampersand followed by
+/// `#64;`), not all the way to `@`. Iterating to a fixed point would be
+/// incorrect and could over-decode legitimate text (e.g. `&amp;copy;` must
+/// stay `&copy;`, not become `©`).
 fn decode_entities(s: &str) -> String {
-    let mut current = s.to_string();
-    for _ in 0..4 {
-        if !current.contains('&') {
-            break;
-        }
-        let next = decode_entities_once(&current);
-        if next == current {
-            break;
-        }
-        current = next;
-    }
-    current
-}
-
-fn decode_entities_once(s: &str) -> String {
     if !s.contains('&') {
         return s.to_string();
     }
@@ -206,13 +193,16 @@ mod tests {
     }
 
     #[test]
-    fn decodes_doubly_encoded_entities_and_is_idempotent() {
-        // `&amp;#64;` is "@" double-encoded once (`&amp;` -> `&`, revealing a
-        // fresh `&#64;` that a single decode pass would otherwise miss).
-        let once = normalize_text("info&amp;#64;beispiel.de");
-        assert_eq!(once, "info@beispiel.de");
-        // Re-normalizing an already-normalized string must be a no-op.
-        assert_eq!(normalize_text(&once), once);
+    fn decodes_entities_exactly_once() {
+        // A doubly-escaped ampersand must decode to the literal escaped
+        // text `&#64;`, NOT be over-decoded to `@`.
+        assert_eq!(decode_entities("&amp;#64;"), "&#64;");
+        assert_eq!(decode_entities("&amp;"), "&");
+        assert_eq!(decode_entities("&#64;"), "@");
+        assert_eq!(
+            decode_entities("M&uuml;ller &amp; S&ouml;hne"),
+            "Müller & Söhne"
+        );
     }
 
     #[test]

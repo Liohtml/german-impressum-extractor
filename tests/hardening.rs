@@ -1,7 +1,7 @@
 use german_impressum_extractor::{extract_all, extract_emails, extract_fax, extract_persons};
 
 // Messy input: NBSP (U+00A0), CRLF, a soft hyphen, and a well-formed entity.
-const MESSY: &str = "Firma\u{00AD} GmbH\r\nTelefon:\u{00A0}+49 30 1234567\r\nFax: +49 30 1234568\r\nE-Mail: info&amp;#64;beispiel.de";
+const MESSY: &str = "Firma\u{00AD} GmbH\r\nTelefon:\u{00A0}+49 30 1234567\r\nFax: +49 30 1234568\r\nE-Mail: info&#64;beispiel.de";
 
 #[test]
 fn standalone_fax_and_emails_match_extract_all_on_messy_input() {
@@ -17,7 +17,7 @@ fn standalone_fax_and_emails_match_extract_all_on_messy_input() {
 #[test]
 fn standalone_email_decodes_entity_and_ignores_nbsp() {
     // &#64; is '@'; NBSP around the address must not break extraction.
-    let e = extract_emails("Mail:\u{00A0}info&amp;#64;beispiel.de");
+    let e = extract_emails("Mail:\u{00A0}info&#64;beispiel.de");
     assert_eq!(e, vec!["info@beispiel.de".to_string()]);
 }
 
