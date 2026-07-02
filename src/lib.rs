@@ -338,6 +338,9 @@ static DE_MAIL_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)De-?Mail\s*[:\-]?\s*([a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,})").unwrap()
 });
 
+static ODR_URL_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)https?://(?:www\.)?ec\.europa\.eu/consumers/odr/?").unwrap());
+
 // ───────────────────────── Blocklists ─────────────────────────
 
 /// Allowlist of real top-level domains an email address may end in.
@@ -948,6 +951,32 @@ fn extract_de_mail_core(text: &str) -> Option<String> {
         .captures(text)
         .and_then(|c| c.get(1))
         .map(|m| m.as_str().to_ascii_lowercase())
+}
+
+/// Extract the EU Online-Dispute-Resolution (OS-Plattform) URL, if present.
+pub fn extract_dispute_resolution_url(text: &str) -> Option<String> {
+    extract_dispute_resolution_url_core(&normalize::normalize_text(text))
+}
+
+fn extract_dispute_resolution_url_core(text: &str) -> Option<String> {
+    ODR_URL_RE.find(text).map(|m| m.as_str().to_string())
+}
+
+/// Extract the Handelsregister section — `"HRA"` or `"HRB"` — from the HR number.
+pub fn extract_register_type(text: &str) -> Option<String> {
+    extract_register_type_core(&normalize::normalize_text(text))
+}
+
+fn extract_register_type_core(text: &str) -> Option<String> {
+    let hr = extract_hr_number_core(text)?;
+    let upper = hr.to_ascii_uppercase();
+    if upper.starts_with("HRB") {
+        Some("HRB".to_string())
+    } else if upper.starts_with("HRA") {
+        Some("HRA".to_string())
+    } else {
+        None
+    }
 }
 
 // ───────────────────────── Helpers ─────────────────────────
