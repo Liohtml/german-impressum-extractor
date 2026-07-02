@@ -117,10 +117,8 @@ pub(crate) fn score_extracted(base: Extracted, doc: &Document) -> ScoredExtracte
                 scored(p, c)
             })
             .collect(),
-        // A fax is only produced when a Fax/Telefax label was matched, so it
-        // carries the label bonus intrinsically.
         fax: base.fax.map(|f| {
-            let c = base_phone(&f) + LABEL_BONUS;
+            let c = base_phone(&f) + bonus(LabelKind::Fax);
             scored(f, c)
         }),
         postcode: base.postcode.map(|v| {
