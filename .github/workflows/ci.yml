@@ -27,6 +27,8 @@ jobs:
         run: cargo test --all-targets
       - name: Test (serde feature)
         run: cargo test --all-targets --features serde
+      - name: Test (html feature)
+        run: cargo test --all-targets --features html
       - name: Doc tests
         run: cargo test --doc --all-features
 

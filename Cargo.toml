@@ -17,10 +17,12 @@ rust-version = "1.85"
 regex = "1.10"
 unicode-normalization = "0.1"
 serde = { version = "1", features = ["derive"], optional = true }
+html5gum = { version = "0.8", default-features = false, optional = true }
 
 [features]
 default = []
 serde = ["dep:serde"]
+html = ["dep:html5gum"]
 
 [dev-dependencies]
 serde_json = "1"
